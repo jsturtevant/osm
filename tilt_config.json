@@ -1,0 +1,6 @@
+{
+  "osm-values":[
+    "osm.featureFlags.enableMeshRootCertificate=true",
+    "osm.featureFlags.enableSpiffeCompatipleCertificates=true"
+  ]
+}
