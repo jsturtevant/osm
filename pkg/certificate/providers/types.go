@@ -90,4 +90,5 @@ type MRCProviderGenerator struct {
 	// TODO(#4745): Remove after deprecating the osm.vault.token option.
 	DefaultVaultToken string
 	caExtractorFunc   func(certificate.Issuer) (pem.RootCertificate, error)
+	spiffeCompat      bool
 }

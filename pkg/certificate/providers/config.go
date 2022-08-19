@@ -98,6 +98,7 @@ func NewCertificateManagerFromMRC(ctx context.Context, kubeClient kubernetes.Int
 			kubeConfig:      kubeConfig,
 			KeyBitSize:      utils.GetCertKeyBitSize(kubeController.GetMeshConfig()),
 			caExtractorFunc: getCA,
+			spiffeCompat:    kubeController.GetMeshConfig().Spec.FeatureFlags.SpiffeCompatipleCertificates,
 		},
 		informerCollection: ic,
 	}
@@ -174,6 +175,7 @@ func (c *MRCProviderGenerator) getTresorOSMCertificateManager(mrc *v1alpha2.Mesh
 		rootCert,
 		rootCertOrganization,
 		c.KeyBitSize,
+		c.spiffeCompat,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate Tresor as a Certificate Manager: %w", err)

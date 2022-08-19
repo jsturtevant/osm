@@ -982,7 +982,8 @@
             "enableEnvoyActiveHealthChecks",
             "enableSnapshotCacheMode",
             "enableRetryPolicy",
-            "enableMeshRootCertificate"
+            "enableMeshRootCertificate",
+            "enableSpiffeCompatipleCertificates"
           ],
           "properties": {
             "enableWASMStats": {
@@ -1053,6 +1054,15 @@
               "type": "boolean",
               "title": "Enable the MeshRootCertificate",
               "description": "Enable the MeshRootCertificate to configure the OSM certificate provider.",
+              "examples": [
+                false
+              ]
+            },
+            "enableSpiffeCompatipleCertificates": {
+              "$id": "#/properties/osm/properties/featureFlags/properties/enableSpiffeCompatipleCertificates",
+              "type": "boolean",
+              "title": "Enable Spiffe Compatiple Certificates",
+              "description": "Enable Spiffe Compatiple Certificates to configure the OSM certificate provider.",
               "examples": [
                 false
               ]

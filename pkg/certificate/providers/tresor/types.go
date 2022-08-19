@@ -29,4 +29,5 @@ type CertManager struct {
 	ca                       *certificate.Certificate
 	certificatesOrganization string
 	keySize                  int
+	spiffCompat              bool
 }

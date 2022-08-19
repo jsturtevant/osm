@@ -80,7 +80,10 @@ require (
 	honnef.co/go/tools v0.1.1 // indirect
 )
 
-require k8s.io/kubectl v0.23.5
+require (
+	github.com/spiffe/go-spiffe/v2 v2.1.1
+	k8s.io/kubectl v0.23.5
+)
 
 require (
 	4d63.com/gochecknoglobals v0.0.0-20201008074935-acfc0b28355a // indirect
@@ -350,6 +353,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
+	github.com/zeebo/errs v1.2.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect

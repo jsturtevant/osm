@@ -281,6 +281,8 @@ spec:
                       type: boolean
                     enableRetryPolicy:
                       type: boolean
+                    spiffeCompatipleCertificates:
+                      type: boolean
     - name: v1alpha1
       served: true
       storage: false
@@ -483,4 +485,6 @@ spec:
                     enableEnvoyActiveHealthChecks:
                       type: boolean
                     enableRetryPolicy:
+                      type: boolean
+                    spiffeCompatipleCertificates:
                       type: boolean

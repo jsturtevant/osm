@@ -234,4 +234,7 @@ type FeatureFlags struct {
 
 	// EnableRetryPolicy defines if retry policy is enabled.
 	EnableRetryPolicy bool `json:"enableRetryPolicy"`
+
+	// SpiffeCompatipleCertificates creates certificates for the proxies
+	SpiffeCompatipleCertificates bool `json:"spiffeCompatibleCertificates"`
 }

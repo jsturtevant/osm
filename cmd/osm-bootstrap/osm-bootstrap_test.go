@@ -82,7 +82,8 @@ var testPresetMeshConfigMap = &corev1.ConfigMap{
 	"enableIngressBackendPolicy": true,
 	"enableEnvoyActiveHealthChecks": true,
 	"enableSnapshotCacheMode": true,
-	"enableRetryPolicy": false
+	"enableRetryPolicy": false,
+	"spiffeCompatipleCertificates": true
 	}
 }`,
 	},
@@ -142,6 +143,7 @@ func TestBuildDefaultMeshConfig(t *testing.T) {
 	assert.True(meshConfig.Spec.FeatureFlags.EnableIngressBackendPolicy)
 	assert.True(meshConfig.Spec.FeatureFlags.EnableEnvoyActiveHealthChecks)
 	assert.False(meshConfig.Spec.FeatureFlags.EnableRetryPolicy)
+	assert.True(meshConfig.Spec.FeatureFlags.SpiffeCompatipleCertificates)
 }
 
 func TestBuildMeshRootCertificate(t *testing.T) {

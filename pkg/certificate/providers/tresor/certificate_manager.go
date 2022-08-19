@@ -6,7 +6,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
+
+	"github.com/openservicemesh/osm/pkg/constants"
 
 	"github.com/openservicemesh/osm/pkg/certificate"
 	"github.com/openservicemesh/osm/pkg/certificate/pem"
@@ -14,10 +18,7 @@ import (
 )
 
 // New constructs a new certificate client using a certificate
-func New(
-	ca *certificate.Certificate,
-	certificatesOrganization string,
-	keySize int) (*CertManager, error) {
+func New(ca *certificate.Certificate, certificatesOrganization string, keySize int, spiffCompat bool) (*CertManager, error) {
 	if ca == nil {
 		return nil, errNoIssuingCA
 	}
@@ -31,6 +32,7 @@ func New(
 		ca:                       ca,
 		certificatesOrganization: certificatesOrganization,
 		keySize:                  keySize,
+		spiffCompat:              spiffCompat,
 	}
 	return &certManager, nil
 }
@@ -73,6 +75,26 @@ func (cm *CertManager) IssueCertificate(cn certificate.CommonName, validityPerio
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+	}
+
+	log.Trace().Bool("spiffe", cm.spiffCompat).Msg("spiffe enabled")
+	if true {
+		log.Trace().Str("commonname", cn.String()).Msg("spiffe enabled for certificate")
+
+		chunks := strings.SplitN(cn.String(), constants.DomainDelimiter, 3)
+		if len(chunks) >= 3 {
+			log.Trace().Str("serialnumber", serialNumber.String()).Msg("spiffe enabled for certificate")
+			path := chunks[0] + "/" + chunks[1]
+			trustDomain := chunks[2]
+
+			template.URIs = []*url.URL{
+				{
+					Scheme: "spiffe",
+					Host:   trustDomain,
+					Path:   path,
+				},
+			}
+		}
 	}
 
 	x509Root, err := certificate.DecodePEMCertificate(cm.ca.GetCertificateChain())

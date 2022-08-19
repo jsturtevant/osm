@@ -72,7 +72,7 @@ func (c *fakeMRCClient) GetCertIssuerForMRC(mrc *v1alpha2.MeshRootCertificate) (
 	if err != nil {
 		return nil, nil, err
 	}
-	issuer, err := tresor.New(ca, rootCertOrganization, 2048)
+	issuer, err := tresor.New(ca, rootCertOrganization, 2048, false)
 	return issuer, pem.RootCertificate("rootCA"), err
 }
 

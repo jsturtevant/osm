@@ -27,11 +27,7 @@ func BenchmarkIssueCertificate(b *testing.B) {
 		b.Fatalf("Error loading CA from files %s and %s: %s", rootCertPem, rootKeyPem, err.Error())
 	}
 
-	m, newCertError := New(
-		rootCert,
-		"org",
-		2048,
-	)
+	m, newCertError := New(rootCert, "org", 2048, false)
 	if newCertError != nil {
 		b.Fatalf("Error creating new certificate manager: %s", newCertError.Error())
 	}
