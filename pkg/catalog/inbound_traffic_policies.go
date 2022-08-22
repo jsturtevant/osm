@@ -185,7 +185,7 @@ func (mc *MeshCatalog) getRoutingRulesFromTrafficTarget(trafficTarget access.Tra
 	trustDomain := mc.GetTrustDomain()
 	allowedDownstreamPrincipals := mapset.NewSet()
 	for _, source := range trafficTarget.Spec.Sources {
-		allowedDownstreamPrincipals.Add(trafficTargetIdentityToSvcAccount(source).AsPrincipal(trustDomain))
+		allowedDownstreamPrincipals.Add(trafficTargetIdentityToSvcAccount(source).AsSpiffeId(trustDomain))
 	}
 
 	var routingRules []*trafficpolicy.Rule

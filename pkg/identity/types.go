@@ -44,6 +44,14 @@ func (si ServiceIdentity) AsPrincipal(trustDomain string) string {
 	return fmt.Sprintf("%s.%s", si.String(), trustDomain)
 }
 
+// AsPrincipal converts the ServiceIdentity to a Principal with the given trust domain.
+func (si ServiceIdentity) AsSpiffeId(trustDomain string) string {
+	if si.IsWildcard() {
+		return si.String()
+	}
+	return fmt.Sprintf("spiffe://%s/%s", trustDomain, strings.Replace(si.String(), ".", "/", -1))
+}
+
 // ToK8sServiceAccount converts a ServiceIdentity to a K8sServiceAccount to help with transition from K8sServiceAccount to ServiceIdentity
 func (si ServiceIdentity) ToK8sServiceAccount() K8sServiceAccount {
 	// By convention as of release-v0.8 ServiceIdentity is in the format: <ServiceAccount>.<Namespace>.cluster.local
@@ -76,4 +84,9 @@ func (sa K8sServiceAccount) ToServiceIdentity() ServiceIdentity {
 // AsPrincipal converts the K8sServiceAccount to a Principal with the given trust domain.
 func (sa K8sServiceAccount) AsPrincipal(trustDomain string) string {
 	return sa.ToServiceIdentity().AsPrincipal(trustDomain)
+}
+
+// AsPrincipal converts the K8sServiceAccount to a Principal with the given trust domain.
+func (sa K8sServiceAccount) AsSpiffeId(trustDomain string) string {
+	return sa.ToServiceIdentity().AsSpiffeId(trustDomain)
 }

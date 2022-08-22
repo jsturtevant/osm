@@ -58,7 +58,7 @@ func buildRBACPolicyFromTrafficTarget(trafficTarget trafficpolicy.TrafficTargetW
 
 	// Create the list of identities for this policy
 	for _, downstreamIdentity := range trafficTarget.Sources {
-		pb.AddPrincipal(downstreamIdentity.AsPrincipal(trustDomain))
+		pb.AddPrincipal(downstreamIdentity.AsSpiffeId(trustDomain))
 	}
 	// Create the list of permissions for this policy
 	for _, tcpRouteMatch := range trafficTarget.TCPRouteMatches {

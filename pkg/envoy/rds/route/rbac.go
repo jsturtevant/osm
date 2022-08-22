@@ -28,6 +28,7 @@ func buildInboundRBACFilterForRule(rule *trafficpolicy.Rule, trustDomain string)
 
 	// Create the list of principals for this policy
 	for downstream := range rule.AllowedPrincipals.Iter() {
+
 		pb.AddPrincipal(downstream.(string))
 	}
 

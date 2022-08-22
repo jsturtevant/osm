@@ -158,21 +158,32 @@ func (s *sdsImpl) getRootCert(cert *certificate.Certificate, sdscert secrets.SDS
 	}
 	svcIdentitiesInCertRequest := s.meshCatalog.ListServiceIdentitiesForService(*meshSvc)
 
-	secret.GetValidationContext().MatchSubjectAltNames = getSubjectAltNamesFromSvcIdentities(svcIdentitiesInCertRequest, s.TrustDomain)
+	secret.GetValidationContext().MatchTypedSubjectAltNames = getSubjectAltNamesFromSvcIdentities(svcIdentitiesInCertRequest, s.TrustDomain)
 	return secret, nil
 }
 
 // Note: ServiceIdentity must be in the format "name.namespace" [https://github.com/openservicemesh/osm/issues/3188]
-func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIdentity, trustDomain string) []*xds_matcher.StringMatcher {
-	var matchSANs []*xds_matcher.StringMatcher
+func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIdentity, trustDomain string) []*xds_auth.SubjectAltNameMatcher {
+	var matchSANs []*xds_auth.SubjectAltNameMatcher
 
 	for _, si := range serviceIdentities {
-		match := xds_matcher.StringMatcher{
-			MatchPattern: &xds_matcher.StringMatcher_Exact{
-				Exact: si.AsPrincipal(trustDomain),
+		dnsMatcher := xds_auth.SubjectAltNameMatcher{
+			SanType: xds_auth.SubjectAltNameMatcher_DNS,
+			Matcher: &xds_matcher.StringMatcher{
+				MatchPattern: &xds_matcher.StringMatcher_Exact{
+					Exact: si.AsPrincipal(trustDomain),
+				},
 			},
 		}
-		matchSANs = append(matchSANs, &match)
+		uriMatcher := xds_auth.SubjectAltNameMatcher{
+			SanType: xds_auth.SubjectAltNameMatcher_URI,
+			Matcher: &xds_matcher.StringMatcher{
+				MatchPattern: &xds_matcher.StringMatcher_Exact{
+					Exact: si.AsSpiffeId(trustDomain),
+				},
+			},
+		}
+		matchSANs = append(matchSANs, &dnsMatcher, &uriMatcher)
 	}
 
 	return matchSANs
