@@ -80,7 +80,7 @@ func TestValidateClient(t *testing.T) {
 	}
 
 	for _, vct := range validateClientTests {
-		certCN, certSerialNumber, err := ValidateClient(vct.ctx)
+		certCN, certSerialNumber, _, err := ValidateClient(vct.ctx)
 		if err != nil {
 			assert.Equal(certCN, certificate.CommonName(""))
 			assert.Equal(certSerialNumber, certificate.SerialNumber(""))

@@ -167,14 +167,14 @@ func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIde
 	var matchSANs []*xds_auth.SubjectAltNameMatcher
 
 	for _, si := range serviceIdentities {
-		dnsMatcher := xds_auth.SubjectAltNameMatcher{
-			SanType: xds_auth.SubjectAltNameMatcher_DNS,
-			Matcher: &xds_matcher.StringMatcher{
-				MatchPattern: &xds_matcher.StringMatcher_Exact{
-					Exact: si.AsPrincipal(trustDomain),
-				},
-			},
-		}
+		// dnsMatcher := xds_auth.SubjectAltNameMatcher{
+		// 	SanType: xds_auth.SubjectAltNameMatcher_DNS,
+		// 	Matcher: &xds_matcher.StringMatcher{
+		// 		MatchPattern: &xds_matcher.StringMatcher_Exact{
+		// 			Exact: si.AsPrincipal(trustDomain),
+		// 		},
+		// 	},
+		// }
 		uriMatcher := xds_auth.SubjectAltNameMatcher{
 			SanType: xds_auth.SubjectAltNameMatcher_URI,
 			Matcher: &xds_matcher.StringMatcher{
@@ -183,7 +183,7 @@ func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIde
 				},
 			},
 		}
-		matchSANs = append(matchSANs, &dnsMatcher, &uriMatcher)
+		matchSANs = append(matchSANs, &uriMatcher)
 	}
 
 	return matchSANs

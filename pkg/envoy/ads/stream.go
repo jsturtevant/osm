@@ -2,6 +2,7 @@ package ads
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ import (
 func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscoveryService_StreamAggregatedResourcesServer) error {
 	// When a new Envoy proxy connects, ValidateClient would ensure that it has a valid certificate,
 	// and the Subject CN is in the allowedCommonNames set.
-	certCommonName, certSerialNumber, err := utils.ValidateClient(server.Context())
+	certCommonName, certSerialNumber, spiffeid, err := utils.ValidateClient(server.Context())
 	if err != nil {
 		return fmt.Errorf("Could not start Aggregated Discovery Service gRPC stream for newly connected Envoy proxy: %w", err)
 	}
@@ -40,7 +41,7 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 	log.Trace().Msgf("Envoy with certificate SerialNumber=%s connected", certSerialNumber)
 	metricsstore.DefaultMetricsStore.ProxyConnectCount.Inc()
 
-	kind, uuid, si, err := getCertificateCommonNameMeta(certCommonName)
+	kind, uuid, si, err := getCertificateCommonNameMeta(certCommonName, spiffeid)
 	if err != nil {
 		return fmt.Errorf("error parsing certificate common name %s: %w", certCommonName, err)
 	}
@@ -311,7 +312,7 @@ func getResourceSliceFromMapset(resourceMap mapset.Set) []string {
 	return resourceSlice
 }
 
-func getCertificateCommonNameMeta(cn certificate.CommonName) (envoy.ProxyKind, uuid.UUID, identity.ServiceIdentity, error) {
+func getCertificateCommonNameMeta(cn certificate.CommonName, spiffeid *url.URL) (envoy.ProxyKind, uuid.UUID, identity.ServiceIdentity, error) {
 	// XDS cert CN is of the form <proxy-UUID>.<kind>.<proxy-identity>.<trust-domain>
 	chunks := strings.SplitN(cn.String(), constants.DomainDelimiter, 5)
 	if len(chunks) < 4 {
@@ -333,7 +334,13 @@ func getCertificateCommonNameMeta(cn certificate.CommonName) (envoy.ProxyKind, u
 		return "", uuid.UUID{}, "", errInvalidCertificateCN
 	}
 
-	return envoy.ProxyKind(chunks[1]), proxyUUID, identity.New(chunks[2], chunks[3]), nil
+	id := identity.New(chunks[2], chunks[3])
+	if spiffeid != nil {
+		id = identity.NewFromSpiffe(spiffeid)
+		log.Info().Str("spiffeid", spiffeid.String()).Str("id", id.String()).Msg("using spiffe id")
+	}
+
+	return envoy.ProxyKind(chunks[1]), proxyUUID, id, nil
 }
 
 // recordPodMetadata records pod metadata and verifies the certificate issued for this pod

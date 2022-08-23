@@ -3,6 +3,7 @@ package identity
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -18,6 +19,14 @@ type ServiceIdentity string
 // New returns a new ServiceIdentity for the given name and namespace.
 func New(name, namespace string) ServiceIdentity {
 	return ServiceIdentity(fmt.Sprintf("%s.%s", name, namespace))
+}
+
+// New returns a new ServiceIdentity for the given name and namespace.
+func NewFromSpiffe(spiffeid *url.URL) ServiceIdentity {
+	// this is wrong becuase we should be in the path but logic to split Ids is off
+	idParts := strings.Split(spiffeid.Host, ".")
+	fmt.Printf("new spiffeid: %s: %s.%s", spiffeid.Path, idParts[2], idParts[3])
+	return ServiceIdentity(fmt.Sprintf("%s.%s", idParts[0], idParts[1]))
 }
 
 // WildcardServiceIdentity is a wildcard to match all service identities

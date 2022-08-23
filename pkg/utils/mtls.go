@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net/url"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -42,27 +43,32 @@ func setupMutualTLS(insecure bool, serverName string, certPem []byte, keyPem []b
 }
 
 // ValidateClient ensures that the connected client is authorized to connect to the gRPC server.
-func ValidateClient(ctx context.Context) (certificate.CommonName, certificate.SerialNumber, error) {
+func ValidateClient(ctx context.Context) (certificate.CommonName, certificate.SerialNumber, *url.URL, error) {
 	mtlsPeer, ok := peer.FromContext(ctx)
 	if !ok {
 		log.Error().Msg("[grpc][mTLS] No peer found")
-		return "", "", status.Error(codes.Unauthenticated, "no peer found")
+		return "", "", nil, status.Error(codes.Unauthenticated, "no peer found")
 	}
 
 	tlsAuth, ok := mtlsPeer.AuthInfo.(credentials.TLSInfo)
 	if !ok {
 		log.Error().Msg("[grpc][mTLS] Unexpected peer transport credentials")
-		return "", "", status.Error(codes.Unauthenticated, "unexpected peer transport credentials")
+		return "", "", nil, status.Error(codes.Unauthenticated, "unexpected peer transport credentials")
 	}
 
 	if len(tlsAuth.State.VerifiedChains) == 0 || len(tlsAuth.State.VerifiedChains[0]) == 0 {
 		log.Error().Msgf("[grpc][mTLS] Could not verify peer certificate")
-		return "", "", status.Error(codes.Unauthenticated, "could not verify peer certificate")
+		return "", "", nil, status.Error(codes.Unauthenticated, "could not verify peer certificate")
 	}
 
 	// Check whether the subject common name is one that is allowed to connect.
 	cn := tlsAuth.State.VerifiedChains[0][0].Subject.CommonName
 
+	spiffeurl := tlsAuth.State.VerifiedChains[0][0].URIs[0]
+	if spiffeurl != nil {
+		log.Info().Str("spiffeid", spiffeurl.String()).Msg("extracted spiffe id")
+	}
+
 	certificateSerialNumber := tlsAuth.State.VerifiedChains[0][0].SerialNumber.String()
-	return certificate.CommonName(cn), certificate.SerialNumber(certificateSerialNumber), nil
+	return certificate.CommonName(cn), certificate.SerialNumber(certificateSerialNumber), spiffeurl, nil
 }

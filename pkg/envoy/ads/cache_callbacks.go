@@ -16,7 +16,7 @@ func (s *Server) OnStreamOpen(ctx context.Context, streamID int64, typ string) e
 	log.Debug().Msgf("OnStreamOpen id: %d typ: %s", streamID, typ)
 	// When a new Envoy proxy connects, ValidateClient would ensure that it has a valid certificate,
 	// and the Subject CN is in the allowedCommonNames set.
-	certCommonName, certSerialNumber, err := utils.ValidateClient(ctx)
+	certCommonName, certSerialNumber, spiffeid, err := utils.ValidateClient(ctx)
 	if err != nil {
 		return fmt.Errorf("Could not start Aggregated Discovery Service gRPC stream for newly connected Envoy proxy: %w", err)
 	}
@@ -30,7 +30,7 @@ func (s *Server) OnStreamOpen(ctx context.Context, streamID int64, typ string) e
 	log.Trace().Msgf("Envoy with certificate SerialNumber=%s connected", certSerialNumber)
 	metricsstore.DefaultMetricsStore.ProxyConnectCount.Inc()
 
-	kind, uuid, si, err := getCertificateCommonNameMeta(certCommonName)
+	kind, uuid, si, err := getCertificateCommonNameMeta(certCommonName, spiffeid)
 	if err != nil {
 		return fmt.Errorf("error parsing certificate common name %s: %w", certCommonName, err)
 	}

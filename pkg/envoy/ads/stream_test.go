@@ -77,7 +77,7 @@ func TestGetCertificateCommonNameMeta(t *testing.T) {
 			assert := tassert.New(t)
 			cn := certificate.CommonName(fmt.Sprintf("%s.%s.%s", tc.uuid, envoy.KindSidecar, tc.identity))
 
-			kind, uuid, si, err := getCertificateCommonNameMeta(cn)
+			kind, uuid, si, err := getCertificateCommonNameMeta(cn, nil)
 
 			assert.Equal(tc.err, err)
 
