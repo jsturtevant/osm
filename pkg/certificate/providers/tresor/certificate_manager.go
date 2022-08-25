@@ -63,10 +63,10 @@ func (cm *CertManager) IssueCertificate(cn certificate.CommonName, validityPerio
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 
-		//DNSNames: []string{string(cn)},
+		DNSNames: []string{string(cn)},
 
 		Subject: pkix.Name{
-			CommonName:   fmt.Sprintf("spifftest.%s", cn),
+			CommonName:   fmt.Sprintf("%s", cn),
 			Organization: []string{cm.certificatesOrganization},
 		},
 		NotBefore: now,
