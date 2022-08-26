@@ -140,12 +140,12 @@ func pbStringValue(v string) *structpb.Value {
 // is used to indicate peer certificate validation should be skipped, and is used when mTLS is disabled (ex. with TLS
 // based ingress).
 // 'sidecarSpec' is the sidecar section of MeshConfig.
-func getCommonTLSContext(tlsSDSCert secrets.SDSCert, peerValidationSDSCert *secrets.SDSCert, sidecarSpec configv1alpha2.SidecarSpec) *xds_auth.CommonTlsContext {
+func getCommonTLSContext(tlsSDSCert secrets.SDSCert, peerValidationSDSCert *secrets.SDSCert, sidecarSpec configv1alpha2.SidecarSpec, downstreamIdentity identity.ServiceIdentity, td string) *xds_auth.CommonTlsContext {
 	commonTLSContext := &xds_auth.CommonTlsContext{
 		TlsParams: GetTLSParams(sidecarSpec),
 		TlsCertificateSdsSecretConfigs: []*xds_auth.SdsSecretConfig{{
 			// Example ==> Name: "service-cert:NameSpaceHere/ServiceNameHere"
-			Name:      tlsSDSCert.String(),
+			Name:      downstreamIdentity.AsSpiffeId(td),
 			SdsConfig: GetADSConfigSource(),
 		}},
 	}
@@ -153,16 +153,57 @@ func getCommonTLSContext(tlsSDSCert secrets.SDSCert, peerValidationSDSCert *secr
 	// For TLS (non-mTLS) based validation, the client certificate should not be validated and the
 	// 'peerValidationSDSCert' will be set to nil to indicate this.
 	if peerValidationSDSCert != nil {
-		commonTLSContext.ValidationContextType = &xds_auth.CommonTlsContext_ValidationContextSdsSecretConfig{
-			ValidationContextSdsSecretConfig: &xds_auth.SdsSecretConfig{
-				// Example ==> Name: "root-cert<type>:NameSpaceHere/ServiceNameHere"
-				Name:      peerValidationSDSCert.String(),
-				SdsConfig: GetADSConfigSource(),
+		identities := []identity.ServiceIdentity{downstreamIdentity}
+		commonTLSContext.ValidationContextType = &xds_auth.CommonTlsContext_CombinedValidationContext{
+			CombinedValidationContext: &xds_auth.CommonTlsContext_CombinedCertificateValidationContext{
+				ValidationContextSdsSecretConfig: &xds_auth.SdsSecretConfig{
+					// Example ==> Name: "root-cert<type>:NameSpaceHere/ServiceNameHere"
+					Name:      fmt.Sprintf("spiffe://%s", td),
+					SdsConfig: GetADSConfigSource(),
+				},
+				DefaultValidationContext: &xds_auth.CertificateValidationContext{
+					MatchTypedSubjectAltNames: getSubjectAltNamesFromSvcIdentities(identities, td),
+				},
 			},
 		}
+
+		// commonTLSContext.ValidationContextType = &xds_auth.CommonTlsContext_ValidationContextSdsSecretConfig{
+		// 	ValidationContextSdsSecretConfig: &xds_auth.SdsSecretConfig{
+		// 		// Example ==> Name: "root-cert<type>:NameSpaceHere/ServiceNameHere"
+		// 		Name:      peerValidationSDSCert.String(),
+		// 		SdsConfig: GetADSConfigSource(),
+		// 	},
+		// }
 	}
 
 	return commonTLSContext
+}
+
+// Note: ServiceIdentity must be in the format "name.namespace" [https://github.com/openservicemesh/osm/issues/3188]
+func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIdentity, trustDomain string) []*xds_auth.SubjectAltNameMatcher {
+	var matchSANs []*xds_auth.SubjectAltNameMatcher
+
+	for _, si := range serviceIdentities {
+		// dnsMatcher := xds_auth.SubjectAltNameMatcher{
+		// 	SanType: xds_auth.SubjectAltNameMatcher_DNS,
+		// 	Matcher: &xds_matcher.StringMatcher{
+		// 		MatchPattern: &xds_matcher.StringMatcher_Exact{
+		// 			Exact: si.AsPrincipal(trustDomain),
+		// 		},
+		// 	},
+		// }
+		uriMatcher := xds_auth.SubjectAltNameMatcher{
+			SanType: xds_auth.SubjectAltNameMatcher_URI,
+			Matcher: &xds_matcher.StringMatcher{
+				MatchPattern: &xds_matcher.StringMatcher_Exact{
+					Exact: si.AsSpiffeId(trustDomain),
+				},
+			},
+		}
+		matchSANs = append(matchSANs, &uriMatcher)
+	}
+
+	return matchSANs
 }
 
 // GetDownstreamTLSContext creates a downstream Envoy TLS Context to be configured on the upstream for the given upstream's identity
@@ -199,7 +240,7 @@ func GetDownstreamTLSContext(upstreamIdentity identity.ServiceIdentity, mTLS boo
 
 // GetUpstreamTLSContext creates an upstream Envoy TLS Context for the given downstream identity and upstream service pair
 // Note: ServiceIdentity must be in the format "name.namespace" [https://github.com/openservicemesh/osm/issues/3188]
-func GetUpstreamTLSContext(downstreamIdentity identity.ServiceIdentity, upstreamSvc service.MeshService, sidecarSpec configv1alpha2.SidecarSpec) *xds_auth.UpstreamTlsContext {
+func GetUpstreamTLSContext(downstreamIdentity identity.ServiceIdentity, upstreamSvc service.MeshService, sidecarSpec configv1alpha2.SidecarSpec, td string) *xds_auth.UpstreamTlsContext {
 	downstreamSDSCert := secrets.SDSCert{
 		Name:     secrets.GetSecretNameForIdentity(downstreamIdentity),
 		CertType: secrets.ServiceCertType,
@@ -208,7 +249,7 @@ func GetUpstreamTLSContext(downstreamIdentity identity.ServiceIdentity, upstream
 		Name:     upstreamSvc.String(),
 		CertType: secrets.RootCertTypeForMTLSOutbound,
 	}
-	commonTLSContext := getCommonTLSContext(downstreamSDSCert, upstreamPeerValidationSDSCert, sidecarSpec)
+	commonTLSContext := getCommonTLSContext(downstreamSDSCert, upstreamPeerValidationSDSCert, sidecarSpec, downstreamIdentity, td)
 
 	// Advertise in-mesh using UpstreamTlsContext.CommonTlsContext.AlpnProtocols
 	commonTLSContext.AlpnProtocols = ALPNInMesh
@@ -226,11 +267,28 @@ func GetUpstreamTLSContext(downstreamIdentity identity.ServiceIdentity, upstream
 // GetADSConfigSource creates an Envoy ConfigSource struct.
 func GetADSConfigSource() *xds_core.ConfigSource {
 	return &xds_core.ConfigSource{
-		ConfigSourceSpecifier: &xds_core.ConfigSource_Ads{
-			Ads: &xds_core.AggregatedConfigSource{},
+		ConfigSourceSpecifier: &xds_core.ConfigSource_ApiConfigSource{
+			ApiConfigSource: &xds_core.ApiConfigSource{
+				ApiType: xds_core.ApiConfigSource_GRPC,
+				GrpcServices: []*xds_core.GrpcService{
+					{
+						TargetSpecifier: &xds_core.GrpcService_EnvoyGrpc_{
+							EnvoyGrpc: &xds_core.GrpcService_EnvoyGrpc{
+								ClusterName: "spire_agent",
+							},
+						},
+					},
+				},
+			},
 		},
-		ResourceApiVersion: xds_core.ApiVersion_V3,
 	}
+
+	// return &xds_core.ConfigSource{
+	// 	ConfigSourceSpecifier: &xds_core.ConfigSource_Ads{
+	// 		Ads: &xds_core.AggregatedConfigSource{},
+	// 	},
+	// 	ResourceApiVersion: xds_core.ApiVersion_V3,
+	// }
 }
 
 // GetEnvoyServiceNodeID creates the string for Envoy's "--service-node" CLI argument for the Kubernetes sidecar container Command/Args

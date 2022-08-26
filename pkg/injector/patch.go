@@ -13,6 +13,7 @@ import (
 	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/openservicemesh/osm/pkg/certificate"
@@ -107,6 +108,18 @@ func (wh *mutatingWebhook) createPatch(pod *corev1.Pod, req *admissionv1.Admissi
 
 	// Create volume for the envoy bootstrap config Secret
 	pod.Spec.Volumes = append(pod.Spec.Volumes, getVolumeSpec(envoyBootstrapConfigName))
+	hv := v1.HostPathVolumeSource()
+	hv.WithPath("/run/spire/sockets")
+	hv.WithType(corev1.HostPathDirectory)
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		Name: "spire-agent-socket",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: *hv.Path,
+				Type: hv.Type,
+			},
+		},
+	})
 
 	// On Windows we cannot use init containers to program HNS because it requires elevated privileges
 	// As a result we assume that the HNS redirection policies are already programmed via a CNI plugin.

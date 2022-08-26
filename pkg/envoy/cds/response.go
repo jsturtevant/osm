@@ -14,14 +14,20 @@ import (
 )
 
 // NewResponse creates a new Cluster Discovery Response.
-func NewResponse(meshCatalog catalog.MeshCataloger, proxy *envoy.Proxy, _ *xds_discovery.DiscoveryRequest, _ *certificate.Manager, _ *registry.ProxyRegistry) ([]types.Resource, error) {
+func NewResponse(meshCatalog catalog.MeshCataloger, proxy *envoy.Proxy, _ *xds_discovery.DiscoveryRequest, cm *certificate.Manager, _ *registry.ProxyRegistry) ([]types.Resource, error) {
 	var clusters []*xds_cluster.Cluster
 	meshConfig := meshCatalog.GetMeshConfig()
 
+	td := cm.GetTrustDomain()
+
 	// Build upstream clusters based on allowed outbound traffic policies
 	outboundMeshTrafficPolicy := meshCatalog.GetOutboundMeshTrafficPolicy(proxy.Identity)
+
+	// TODO - get
+	svcIdentitiesInCertRequest := meshCatalog.ListServiceIdentitiesForService(*meshSvc)
+
 	if outboundMeshTrafficPolicy != nil {
-		clusters = append(clusters, upstreamClustersFromClusterConfigs(proxy.Identity, outboundMeshTrafficPolicy.ClustersConfigs, meshConfig.Spec.Sidecar)...)
+		clusters = append(clusters, upstreamClustersFromClusterConfigs(proxy.Identity, outboundMeshTrafficPolicy.ClustersConfigs, meshConfig.Spec.Sidecar, td)...)
 	}
 
 	// Build local clusters based on allowed inbound traffic policies

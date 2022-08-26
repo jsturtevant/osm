@@ -53,11 +53,18 @@ func getEnvoySidecarContainerSpec(pod *corev1.Pod, meshConfig v1alpha2.MeshConfi
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		SecurityContext: securityContext,
 		Ports:           getEnvoyContainerPorts(originalHealthProbes),
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      envoyBootstrapConfigVolume,
-			ReadOnly:  true,
-			MountPath: bootstrap.EnvoyProxyConfigPath,
-		}},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      envoyBootstrapConfigVolume,
+				ReadOnly:  true,
+				MountPath: bootstrap.EnvoyProxyConfigPath,
+			},
+			{
+				Name:      "spire-agent-socket",
+				ReadOnly:  true,
+				MountPath: "/run/spire/sockets",
+			},
+		},
 		Command:   []string{"envoy"},
 		Resources: meshConfig.Spec.Sidecar.Resources,
 		Args: []string{

@@ -33,11 +33,11 @@ var replacer = strings.NewReplacer(".", "_", ":", "_")
 
 // getUpstreamServiceCluster returns an Envoy Cluster corresponding to the given upstream service
 // Note: ServiceIdentity must be in the format "name.namespace" [https://github.com/openservicemesh/osm/issues/3188]
-func getUpstreamServiceCluster(downstreamIdentity identity.ServiceIdentity, config trafficpolicy.MeshClusterConfig, sidecarSpec configv1alpha2.SidecarSpec) *xds_cluster.Cluster {
+func getUpstreamServiceCluster(downstreamIdentity identity.ServiceIdentity, config trafficpolicy.MeshClusterConfig, sidecarSpec configv1alpha2.SidecarSpec, td string) *xds_cluster.Cluster {
 	httpProtocolOptions := getHTTPProtocolOptions("")
 
 	marshalledUpstreamTLSContext, err := anypb.New(
-		envoy.GetUpstreamTLSContext(downstreamIdentity, config.Service, sidecarSpec))
+		envoy.GetUpstreamTLSContext(downstreamIdentity, config.Service, sidecarSpec, td))
 	if err != nil {
 		log.Error().Err(err).Msgf("Error marshalling UpstreamTLSContext for upstream cluster %s", config.Name)
 		return nil
@@ -326,11 +326,11 @@ func formatAltStatNameForPrometheus(clusterName string) string {
 	return replacer.Replace(clusterName)
 }
 
-func upstreamClustersFromClusterConfigs(downstreamIdentity identity.ServiceIdentity, configs []*trafficpolicy.MeshClusterConfig, sidecarSpec configv1alpha2.SidecarSpec) []*xds_cluster.Cluster {
+func upstreamClustersFromClusterConfigs(downstreamIdentity identity.ServiceIdentity, configs []*trafficpolicy.MeshClusterConfig, sidecarSpec configv1alpha2.SidecarSpec, td string) []*xds_cluster.Cluster {
 	var clusters []*xds_cluster.Cluster
 
 	for _, c := range configs {
-		clusters = append(clusters, getUpstreamServiceCluster(downstreamIdentity, *c, sidecarSpec))
+		clusters = append(clusters, getUpstreamServiceCluster(downstreamIdentity, *c, sidecarSpec, td))
 	}
 	return clusters
 }
