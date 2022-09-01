@@ -148,7 +148,7 @@ func getCommonTLSContext(tlsSDSCert secrets.SDSCert, peerValidationSDSCert *secr
 		TlsCertificateSdsSecretConfigs: []*xds_auth.SdsSecretConfig{{
 			// Example ==> Name: "service-cert:NameSpaceHere/ServiceNameHere"
 			Name:      tlsIdentity.AsSpiffeId(td),
-			SdsConfig: GetADSConfigSource(),
+			SdsConfig: GetSpireConfigSource(),
 		}},
 	}
 
@@ -161,7 +161,7 @@ func getCommonTLSContext(tlsSDSCert secrets.SDSCert, peerValidationSDSCert *secr
 				ValidationContextSdsSecretConfig: &xds_auth.SdsSecretConfig{
 					// Example ==> Name: "root-cert<type>:NameSpaceHere/ServiceNameHere"
 					Name:      fmt.Sprintf("spiffe://%s", td),
-					SdsConfig: GetADSConfigSource(),
+					SdsConfig: GetSpireConfigSource(),
 				},
 				DefaultValidationContext: &xds_auth.CertificateValidationContext{
 					MatchTypedSubjectAltNames: getSubjectAltNamesFromSvcIdentities(peerIdentities, td),
@@ -269,6 +269,15 @@ func GetUpstreamTLSContext(downstreamIdentity identity.ServiceIdentity, upstream
 
 // GetADSConfigSource creates an Envoy ConfigSource struct.
 func GetADSConfigSource() *xds_core.ConfigSource {
+	return &xds_core.ConfigSource{
+		ConfigSourceSpecifier: &xds_core.ConfigSource_Ads{
+			Ads: &xds_core.AggregatedConfigSource{},
+		},
+		ResourceApiVersion: xds_core.ApiVersion_V3,
+	}
+}
+
+func GetSpireConfigSource() *xds_core.ConfigSource {
 	return &xds_core.ConfigSource{
 		ConfigSourceSpecifier: &xds_core.ConfigSource_ApiConfigSource{
 			ApiConfigSource: &xds_core.ApiConfigSource{
