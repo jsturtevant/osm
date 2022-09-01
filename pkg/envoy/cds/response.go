@@ -11,6 +11,7 @@ import (
 	"github.com/openservicemesh/osm/pkg/envoy"
 	"github.com/openservicemesh/osm/pkg/envoy/registry"
 	"github.com/openservicemesh/osm/pkg/errcode"
+	"github.com/openservicemesh/osm/pkg/identity"
 )
 
 // NewResponse creates a new Cluster Discovery Response.
@@ -23,11 +24,14 @@ func NewResponse(meshCatalog catalog.MeshCataloger, proxy *envoy.Proxy, _ *xds_d
 	// Build upstream clusters based on allowed outbound traffic policies
 	outboundMeshTrafficPolicy := meshCatalog.GetOutboundMeshTrafficPolicy(proxy.Identity)
 
-	// TODO - get
-	svcIdentitiesInCertRequest := meshCatalog.ListServiceIdentitiesForService(*meshSvc)
+	upstreamIdentities := []identity.ServiceIdentity{}
+	for _, c := range outboundMeshTrafficPolicy.ClustersConfigs {
+		svcIdentitiesInCertRequest := meshCatalog.ListServiceIdentitiesForService(c.Service)
+		upstreamIdentities = append(upstreamIdentities, svcIdentitiesInCertRequest...)
+	}
 
 	if outboundMeshTrafficPolicy != nil {
-		clusters = append(clusters, upstreamClustersFromClusterConfigs(proxy.Identity, outboundMeshTrafficPolicy.ClustersConfigs, meshConfig.Spec.Sidecar, td)...)
+		clusters = append(clusters, upstreamClustersFromClusterConfigs(proxy.Identity, outboundMeshTrafficPolicy.ClustersConfigs, meshConfig.Spec.Sidecar, td, upstreamIdentities)...)
 	}
 
 	// Build local clusters based on allowed inbound traffic policies

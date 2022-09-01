@@ -14,6 +14,7 @@ import (
 	xds_upstream_http "github.com/envoyproxy/go-control-plane/envoy/extensions/upstreams/http/v3"
 	xds_discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/golang/protobuf/ptypes/any"
+	"github.com/golang/protobuf/ptypes/duration"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/openservicemesh/osm/pkg/constants"
@@ -267,6 +268,42 @@ func (b *Builder) Build() (*xds_bootstrap.Bootstrap, error) {
 															PortSpecifier: &xds_core.SocketAddress_PortValue{
 																PortValue: constants.ADSServerPort,
 															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Name: "spire_agent",
+					ConnectTimeout: &duration.Duration{
+						Seconds: 1,
+					},
+					ClusterDiscoveryType: &xds_cluster.Cluster_Type{
+						Type: xds_cluster.Cluster_STATIC,
+					},
+					TypedExtensionProtocolOptions: map[string]*any.Any{
+						"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": pbHTTPProtocolOptions,
+					},
+					LbPolicy: xds_cluster.Cluster_ROUND_ROBIN,
+					LoadAssignment: &xds_endpoint.ClusterLoadAssignment{
+						ClusterName: "spire_agent",
+						Endpoints: []*xds_endpoint.LocalityLbEndpoints{
+							{
+								LbEndpoints: []*xds_endpoint.LbEndpoint{
+									{
+										HostIdentifier: &xds_endpoint.LbEndpoint_Endpoint{
+
+											Endpoint: &xds_endpoint.Endpoint{
+												Address: &xds_core.Address{
+													Address: &xds_core.Address_Pipe{
+														Pipe: &xds_core.Pipe{
+															Path: "/run/spire/sockets/agent.sock",
 														},
 													},
 												},
