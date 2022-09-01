@@ -122,7 +122,7 @@ func (lb *listenerBuilder) buildInboundHTTPFilterChain(trafficMatch *trafficpoli
 	}
 
 	// Construct downstream TLS context
-	marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, true /* mTLS */, lb.sidecarSpec, lb.trustDomain))
+	marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, true /* mTLS */, lb.sidecarSpec, lb.trustDomain, lb.inboundTrafficIdentities))
 	if err != nil {
 		log.Error().Err(err).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrMarshallingXDSResource)).
 			Msgf("Error marshalling DownstreamTLSContext for traffic match %s", trafficMatch.Name)
@@ -197,7 +197,7 @@ func (lb *listenerBuilder) buildInboundTCPFilterChain(trafficMatch *trafficpolic
 	}
 
 	// Construct downstream TLS context
-	marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, true /* mTLS */, lb.sidecarSpec, lb.trustDomain))
+	marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, true /* mTLS */, lb.sidecarSpec, lb.trustDomain, lb.inboundTrafficIdentities))
 	if err != nil {
 		log.Error().Err(err).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrMarshallingXDSResource)).
 			Msgf("Error marshalling DownstreamTLSContext for traffic match %s", trafficMatch.Name)

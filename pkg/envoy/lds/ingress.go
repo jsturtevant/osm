@@ -101,7 +101,7 @@ func (lb *listenerBuilder) buildIngressFilterChainFromTrafficMatch(trafficMatch 
 		filterChain.FilterChainMatch.TransportProtocol = envoy.TransportProtocolTLS
 		filterChain.FilterChainMatch.ServerNames = trafficMatch.ServerNames
 
-		marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, !trafficMatch.SkipClientCertValidation, lb.sidecarSpec, lb.trustDomain))
+		marshalledDownstreamTLSContext, err := anypb.New(envoy.GetDownstreamTLSContext(lb.proxyIdentity, !trafficMatch.SkipClientCertValidation, lb.sidecarSpec, lb.trustDomain, lb.inboundTrafficIdentities))
 		if err != nil {
 			return nil, fmt.Errorf("Error marshalling DownstreamTLSContext in ingress filter chain for proxy with identity %s", lb.proxyIdentity)
 		}

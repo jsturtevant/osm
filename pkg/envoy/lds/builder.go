@@ -167,6 +167,11 @@ func (lb *listenerBuilder) SidecarSpec(sidecarSpec configv1alpha2.SidecarSpec) *
 	return lb
 }
 
+func (lb *listenerBuilder) InboudTrafficIdentities(identities []identity.ServiceIdentity) *listenerBuilder {
+	lb.inboundTrafficIdentities = identities
+	return lb
+}
+
 func (lb *listenerBuilder) Build() (*xds_listener.Listener, error) {
 	var l *xds_listener.Listener
 	switch lb.trafficDirection {

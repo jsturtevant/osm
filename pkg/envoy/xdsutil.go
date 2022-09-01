@@ -210,7 +210,7 @@ func getSubjectAltNamesFromSvcIdentities(serviceIdentities []identity.ServiceIde
 
 // GetDownstreamTLSContext creates a downstream Envoy TLS Context to be configured on the upstream for the given upstream's identity
 // Note: ServiceIdentity must be in the format "name.namespace" [https://github.com/openservicemesh/osm/issues/3188]
-func GetDownstreamTLSContext(upstreamIdentity identity.ServiceIdentity, mTLS bool, sidecarSpec configv1alpha2.SidecarSpec, td string) *xds_auth.DownstreamTlsContext {
+func GetDownstreamTLSContext(upstreamIdentity identity.ServiceIdentity, mTLS bool, sidecarSpec configv1alpha2.SidecarSpec, td string, downstreamIdentities []identity.ServiceIdentity) *xds_auth.DownstreamTlsContext {
 	upstreamSDSCert := secrets.SDSCert{
 		Name:     secrets.GetSecretNameForIdentity(upstreamIdentity),
 		CertType: secrets.ServiceCertType,
@@ -232,9 +232,8 @@ func GetDownstreamTLSContext(upstreamIdentity identity.ServiceIdentity, mTLS boo
 		downstreamPeerValidationSDSCert = nil
 	}
 
-	downstreamidentities := []identity.ServiceIdentity{upstreamIdentity}
 	tlsConfig := &xds_auth.DownstreamTlsContext{
-		CommonTlsContext: getCommonTLSContext(upstreamSDSCert, downstreamPeerValidationSDSCert, sidecarSpec, upstreamIdentity, td, downstreamidentities),
+		CommonTlsContext: getCommonTLSContext(upstreamSDSCert, downstreamPeerValidationSDSCert, sidecarSpec, upstreamIdentity, td, downstreamIdentities),
 		// When RequireClientCertificate is enabled trusted CA certs must be provided via ValidationContextType
 		RequireClientCertificate: &wrappers.BoolValue{Value: mTLS},
 	}

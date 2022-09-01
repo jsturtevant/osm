@@ -39,6 +39,7 @@ type listenerBuilder struct {
 	activeHealthCheck         bool
 	sidecarSpec               configv1alpha2.SidecarSpec
 	filBuilder                *filterBuilder
+	inboundTrafficIdentities  []identity.ServiceIdentity
 
 	listenerFilters []*xds_listener.ListenerFilter
 }

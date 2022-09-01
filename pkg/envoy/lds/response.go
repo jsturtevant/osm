@@ -13,6 +13,7 @@ import (
 	"github.com/openservicemesh/osm/pkg/envoy"
 	"github.com/openservicemesh/osm/pkg/envoy/registry"
 	"github.com/openservicemesh/osm/pkg/errcode"
+	"github.com/openservicemesh/osm/pkg/identity"
 	"github.com/openservicemesh/osm/pkg/utils"
 )
 
@@ -77,6 +78,13 @@ func NewResponse(meshCatalog catalog.MeshCataloger, proxy *envoy.Proxy, _ *xds_d
 	}
 
 	// --- INBOUND -------------------
+	inboundTrafficPolicy := meshCatalog.GetInboundMeshTrafficPolicy(proxy.Identity, svcList)
+	downStreamIdentities := []identity.ServiceIdentity{}
+	for _, c := range inboundTrafficPolicy.ClustersConfigs {
+		svcIdentitiesInCertRequest := meshCatalog.ListServiceIdentitiesForService(c.Service)
+		downStreamIdentities = append(downStreamIdentities, svcIdentitiesInCertRequest...)
+	}
+
 	inboundLis := ListenerBuilder().
 		Name(InboundListenerName).
 		ProxyIdentity(proxy.Identity).
@@ -85,10 +93,11 @@ func NewResponse(meshCatalog catalog.MeshCataloger, proxy *envoy.Proxy, _ *xds_d
 		TrafficDirection(xds_core.TrafficDirection_INBOUND).
 		DefaultInboundListenerFilters().
 		PermissiveMesh(meshConfig.Spec.Traffic.EnablePermissiveTrafficPolicyMode).
-		InboundMeshTrafficPolicy(meshCatalog.GetInboundMeshTrafficPolicy(proxy.Identity, svcList)).
+		InboundMeshTrafficPolicy(inboundTrafficPolicy).
 		IngressTrafficPolicies(meshCatalog.GetIngressTrafficPolicies(svcList)).
 		ActiveHealthCheck(meshConfig.Spec.FeatureFlags.EnableEnvoyActiveHealthChecks).
-		SidecarSpec(meshConfig.Spec.Sidecar)
+		SidecarSpec(meshConfig.Spec.Sidecar).
+		InboudTrafficIdentities(downStreamIdentities)
 
 	trafficTargets, err := meshCatalog.ListInboundTrafficTargetsWithRoutes(proxy.Identity)
 	if err != nil {
