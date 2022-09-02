@@ -232,7 +232,10 @@ func GetDownstreamTLSContext(upstreamIdentity identity.ServiceIdentity, mTLS boo
 		downstreamPeerValidationSDSCert = nil
 	}
 
+	// In most cases with spiffe we really just want the root cert for mTLS since in bound checks are done at the l4 and HTTPS RBAC levels
+	downstreamIdentities = []identity.ServiceIdentity{}
 	tlsConfig := &xds_auth.DownstreamTlsContext{
+
 		CommonTlsContext: getCommonTLSContext(upstreamSDSCert, downstreamPeerValidationSDSCert, sidecarSpec, upstreamIdentity, td, downstreamIdentities),
 		// When RequireClientCertificate is enabled trusted CA certs must be provided via ValidationContextType
 		RequireClientCertificate: &wrappers.BoolValue{Value: mTLS},

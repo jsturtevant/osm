@@ -20,7 +20,9 @@ kubectl apply \
     -f https://raw.githubusercontent.com/jsturtevant/spire-tutorials/osm/k8s/quickstart/agent-daemonset.yaml
 
 # register agent
-kubectl wait -l statefulset.kubernetes.io/pod-name=spire-server-0 --for=condition=ready pod --timeout=-1s
+# note spiffe id for node agent cannot start with /spire 
+# https://github.com/spiffe/spire/blob/f423beeb16098655674f97dba4bbb5bd0642a772/pkg/common/idutil/spiffeid.go#L39
+kubectl wait -n spire -l statefulset.kubernetes.io/pod-name=spire-server-0 --for=condition=ready pod --timeout=-1s
 kubectl exec -n spire spire-server-0 -- \
     /opt/spire/bin/spire-server entry create \
     -spiffeID spiffe://cluster.local/ns/spire/sa/spire-agent \
@@ -57,5 +59,12 @@ kubectl exec -n spire spire-server-0 -- \
     -parentID spiffe://cluster.local/ns/spire/sa/spire-agent \
     -selector k8s:ns:bookwarehouse \
     -selector k8s:sa:bookwarehouse
+
+kubectl exec -n spire spire-server-0 -- \
+    /opt/spire/bin/spire-server entry create \
+    -spiffeID spiffe://cluster.local/mysql/bookwarehouse \
+    -parentID spiffe://cluster.local/ns/spire/sa/spire-agent \
+    -selector k8s:ns:bookwarehouse \
+    -selector k8s:sa:mysql
 
 # leave out book thief and show how it can't get a secret.
