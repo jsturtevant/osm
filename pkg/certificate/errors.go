@@ -28,11 +28,5 @@ var ErrInvalidMRCIntent = errors.New("invalid mrc intent")
 // ErrInvalidMRCIntentCombination
 var ErrInvalidMRCIntentCombination = errors.New("invalid mrc intent combination")
 
-/*type ErrInvalidMRCIntentCombination struct {
-	intent1 string
-	intent2 string
-}
-
-func (e *ErrInvalidMRCIntentCombination) Error() string {
-	return
-}*/
+// ErrMRCNotFound
+var ErrMRCNotFound = errors.New("mrc not found")

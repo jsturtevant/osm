@@ -75,7 +75,8 @@ var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alph
 
 func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	if mrc1 == nil || mrc2 == nil {
-		return fmt.Errorf("")
+		log.Error().Err(ErrMRCNotFound).Msg("cannot validate nil mrc")
+		return ErrMRCNotFound
 	}
 
 	intent1 := mrc1.Spec.Intent
@@ -83,8 +84,7 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 
 	validIntents, ok := validMRCIntentCombinations[intent1]
 	if !ok {
-		// TODO(jaellio): add errcode for invalid mrc intent
-		log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+		log.Error().Err(ErrInvalidMRCIntent).
 			Msgf("unable to find %s intent in set of valid intents. Invalid combination of %s intent and %s intent", intent1, intent1, intent2)
 		return ErrInvalidMRCIntent
 	}
@@ -105,7 +105,8 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 // or pass intent directly to set issuers. It has already be
 func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	if mrc1 == nil || mrc2 == nil {
-		return fmt.Errorf("")
+		log.Error().Err(ErrMRCNotFound).Msg("cannot validate nil mrc")
+		return ErrMRCNotFound
 	}
 
 	issuer1, err := m.getCertIssuer(mrc1)

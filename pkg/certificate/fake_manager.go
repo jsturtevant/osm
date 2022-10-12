@@ -19,7 +19,7 @@ type fakeMRCClient struct{}
 
 // GetCertIssuerForMRC returns a fakeIssuer and pre-generated RootCertificate. It is intended to implement the certificate.MRCClient interface.
 func (c *fakeMRCClient) GetCertIssuerForMRC(mrc *v1alpha2.MeshRootCertificate) (Issuer, pem.RootCertificate, error) {
-	return &fakeIssuer{}, pem.RootCertificate("rootCA"), nil
+	return &fakeIssuer{id: mrc.Name}, pem.RootCertificate("rootCA"), nil
 }
 
 // ListMeshRootCertificates returns the single, pre-generated MRC. It is intended to implement the certificate.MRCClient interface.
