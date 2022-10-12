@@ -21,139 +21,164 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 		return fmt.Errorf("More than 2 MRCs found in control plane namespace. Ignoring event.")
 	}
 
-	err = validateMRCIntents(mrcList)
-	if err != nil {
-		// TODO(jaellio): set error on MRC?
+	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
+	mrc1 = mrcList[0]
+	if len(mrcList) == 1 {
+		return m.handleSingleMRC(mrc1)
+	}
+
+	mrc2 = mrcList[1]
+	log.Debug().Msgf("")
+	if err = ValidateMRCIntents(mrc1, mrc2); err != nil {
 		return err
 	}
 
-	err = m.setIssuers(mrcList)
-	if err != nil {
+	if err = m.setIssuers(mrc1, mrc2); err != nil {
 		// TODO(jaellio): set error on MRC?
 		return err
 	}
 	return nil
 }
 
-func validateMRCIntents(mrcList []*v1alpha2.MeshRootCertificate) error {
-	// TODO(jaellio): check is list is empty, return error?
-	mrc1Name := mrcList[0].Name
-	mrc1Intent := mrcList[0].Spec.Intent
-	if len(mrcList) == 1 {
-		if mrc1Intent != "Active" {
-			return fmt.Errorf("")
-		}
-		return nil
-	}
-
-	mrc2Name := mrcList[1].Name
-	mrc2Intent := mrcList[1].Spec.Intent
-
-	log.Info().Msgf("validating intent %s for MRC %s and intent %s for MRC %s", mrc1Intent, mrc1Name, mrc2Intent, mrc2Name)
-	switch mrc1Intent {
-	case "Active":
-		switch mrc2Intent {
-		case "Passive", "Inactive", "Deactive":
-			return nil
-		default:
-			return ErrInvalidMRCIntentCombination
-		}
-	case "Passive":
-		switch mrc2Intent {
-		case "Active", "Deactive":
-			return nil
-		default:
-			return ErrInvalidMRCIntentCombination
-		}
-	case "Deactive":
-		switch mrc2Intent {
-		case "Active", "Passive":
-			return nil
-		default:
-			return ErrInvalidMRCIntentCombination
-		}
-	case "Inactive":
-		switch mrc2Intent {
-		case "Active":
-			return nil
-		default:
-			return ErrInvalidMRCIntentCombination
-		}
-	default:
+func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
+	if mrc.Spec.Intent != v1alpha2.ActiveIntent {
 		return ErrInvalidMRCIntent
 	}
 
-	log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-		Msgf("mrc %s with intent %s and mrc % with intent %s", mrc1Name, mrc1Intent, mrc2Name, mrc2Intent)
-	return nil
-}
-
-// TODO(jeallio): simplify to different data structure rather than user switch case
-func (m *Manager) setIssuers(mrcList []*v1alpha2.MeshRootCertificate) error {
-	mrc1 := mrcList[0]
-	mrc1Intent := mrc1.Spec.Intent
-	var mrc1Issuer, mrc2Issuer *issuer
-
-	if len(mrcList) == 1 {
-		if mrc1Intent != "Active" {
-			return fmt.Errorf("")
-		}
-		mrc1Issuer, err := m.getCertIssuer(mrc1)
-		if err != nil {
-			return err
-		}
-		return m.updateIssuers(mrc1Issuer, nil)
-	}
-
-	mrc2 := mrcList[1]
-	mrc2Intent := mrc2.Spec.Intent
-	mrc1Issuer, err := m.getCertIssuer(mrc2)
+	issuer, err := m.getCertIssuer(mrc)
 	if err != nil {
 		return err
 	}
-	// TODO(jaellio): create errors
-	switch mrc1Intent {
-	case "Active":
-		switch mrc2Intent {
-		case "Passive":
-			return m.updateIssuers(mrc1Issuer, mrc2Issuer)
-		case "Inactive":
-			return m.updateIssuers(mrc1Issuer, mrc1Issuer)
-		case "Deactive":
-			return m.updateIssuers(mrc2Issuer, mrc1Issuer)
-		default:
-			return fmt.Errorf("I")
-		}
-	case "Passive":
-		switch mrc2Intent {
-		case "Active":
-			return m.updateIssuers(mrc2Issuer, mrc1Issuer)
-		case "Deactive":
-			return m.updateIssuers(mrc1Issuer, mrc2Issuer)
-		default:
-			return fmt.Errorf("%s", mrc2Intent)
-		}
-	case "Deactive":
-		switch mrc2Intent {
-		case "Active":
-			return m.updateIssuers(mrc2Issuer, mrc1Issuer)
-		case "Passive":
-			return m.updateIssuers(mrc2Issuer, mrc1Issuer)
-		default:
-			return fmt.Errorf("%s", mrc2Intent)
-		}
-	case "Inactive":
-		switch mrc2Intent {
-		case "Active":
-			return m.updateIssuers(mrc2Issuer, mrc2Issuer)
-		default:
-			return fmt.Errorf("%s", mrc2Intent)
-		}
-	default:
-		return fmt.Errorf("%s", mrc2Intent)
+
+	return m.updateIssuers(issuer, issuer)
+}
+
+var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alpha2.MeshRootCertificateIntent{
+	// TODO(jaellio): considered nested map. Intent slice is small so iterating over the slice is fine for now
+	v1alpha2.ActiveIntent: []v1alpha2.MeshRootCertificateIntent{
+		v1alpha2.PassiveIntent,
+		v1alpha2.DeactiveIntent,
+		v1alpha2.InactiveIntent,
+	},
+	v1alpha2.PassiveIntent: []v1alpha2.MeshRootCertificateIntent{
+		v1alpha2.ActiveIntent,
+		v1alpha2.DeactiveIntent,
+	},
+	v1alpha2.DeactiveIntent: []v1alpha2.MeshRootCertificateIntent{
+		v1alpha2.ActiveIntent,
+		v1alpha2.PassiveIntent,
+	},
+	v1alpha2.InactiveIntent: []v1alpha2.MeshRootCertificateIntent{
+		v1alpha2.ActiveIntent,
+	},
+}
+
+func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
+	if mrc1 == nil || mrc2 == nil {
+		return fmt.Errorf("")
 	}
 
-	return nil
+	intent1 := mrc1.Spec.Intent
+	intent2 := mrc2.Spec.Intent
+
+	validIntents, ok := validMRCIntentCombinations[intent1]
+	if !ok {
+		// TODO(jaellio): add errcode for invalid mrc intent
+		log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+			Msgf("unable to find %s intent in set of valid intents. Invalid combination of %s intent and %s intent", intent1, intent1, intent2)
+		return ErrInvalidMRCIntent
+	}
+
+	for _, intent := range validIntents {
+		if intent2 == intent {
+			log.Debug().Msgf("valid intent combination")
+			return nil
+		}
+	}
+
+	log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+		Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+	return ErrInvalidMRCIntentCombination
+}
+
+// TODO(jeallio): simplify to different data structure rather than user switch case
+// or pass intent directly to set issuers. It has already be
+func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
+	if mrc1 == nil || mrc2 == nil {
+		return fmt.Errorf("")
+	}
+
+	issuer1, err := m.getCertIssuer(mrc1)
+	if err != nil {
+		return err
+	}
+	issuer2, err := m.getCertIssuer(mrc2)
+	if err != nil {
+		return err
+	}
+
+	intent1 := mrc1.Spec.Intent
+	intent2 := mrc2.Spec.Intent
+
+	var signingIssuer, validatingIssuer *issuer
+	switch intent1 {
+	case v1alpha2.ActiveIntent:
+		switch intent2 {
+		case v1alpha2.PassiveIntent:
+			signingIssuer = issuer1
+			validatingIssuer = issuer2
+		case v1alpha2.InactiveIntent:
+			signingIssuer = issuer1
+			validatingIssuer = issuer1
+		case v1alpha2.DeactiveIntent:
+			signingIssuer = issuer2
+			validatingIssuer = issuer1
+		default:
+			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+			return ErrInvalidMRCIntentCombination
+		}
+	case v1alpha2.PassiveIntent:
+		switch intent2 {
+		case v1alpha2.ActiveIntent:
+			signingIssuer = issuer2
+			validatingIssuer = issuer1
+		case v1alpha2.DeactiveIntent:
+			signingIssuer = issuer1
+			validatingIssuer = issuer2
+		default:
+			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+			return ErrInvalidMRCIntentCombination
+		}
+	case v1alpha2.DeactiveIntent:
+		switch intent2 {
+		case v1alpha2.ActiveIntent, v1alpha2.PassiveIntent:
+			signingIssuer = issuer2
+			validatingIssuer = issuer1
+		default:
+			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+			return ErrInvalidMRCIntentCombination
+		}
+	case v1alpha2.InactiveIntent:
+		switch intent2 {
+		case v1alpha2.ActiveIntent:
+			signingIssuer = issuer2
+			validatingIssuer = issuer2
+		default:
+			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
+				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+			return ErrInvalidMRCIntentCombination
+		}
+	default:
+		// TODO(jaellio): create errcode for ErrInvalidMRCIntent
+		// log.Error().Err(ErrInvalidMRCIntent).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntent)).
+		//		Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+		return ErrInvalidMRCIntent
+	}
+
+	return m.updateIssuers(signingIssuer, validatingIssuer)
 }
 
 func (m *Manager) updateIssuers(signing, validating *issuer) error {

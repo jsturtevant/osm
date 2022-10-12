@@ -21,9 +21,18 @@ var ErrInvalidCertSecret = errors.New("invalid secret for certificate")
 // ErrSecretNotFound should be returned if the secret isn't present in the underlying infra, on a Get
 var ErrSecretNotFound = errors.New("secret not found")
 
-// ErrInvalidMRCIntentCombination
-var ErrInvalidMRCIntentCombination = errors.New("invalid mrc intent combination")
-
 // ErrInvalidMRCIntent is the error that should be returned if the intent value on the MRC is not one of the supported
 // values
 var ErrInvalidMRCIntent = errors.New("invalid mrc intent")
+
+// ErrInvalidMRCIntentCombination
+var ErrInvalidMRCIntentCombination = errors.New("invalid mrc intent combination")
+
+/*type ErrInvalidMRCIntentCombination struct {
+	intent1 string
+	intent2 string
+}
+
+func (e *ErrInvalidMRCIntentCombination) Error() string {
+	return
+}*/

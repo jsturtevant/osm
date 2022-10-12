@@ -122,6 +122,20 @@ type TresorCASpec struct {
 // can be (Active, Passive).
 type MeshRootCertificateIntent string
 
+const (
+	// ActiveIntent
+	ActiveIntent MeshRootCertificateIntent = "Active"
+
+	// PassiveIntent
+	PassiveIntent MeshRootCertificateIntent = "Passive"
+
+	// DeactiveIntent
+	DeactiveIntent MeshRootCertificateIntent = "Deactive"
+
+	// InactiveIntent
+	InactiveIntent MeshRootCertificateIntent = "Inactive"
+)
+
 // MeshRootCertificateComponentStatus specifies the status of the certificate component,
 // can be (`Issuing`, `Validating`, `Unknown`).
 type MeshRootCertificateComponentStatus string
