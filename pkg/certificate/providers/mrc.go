@@ -33,8 +33,7 @@ func (m *MRCComposer) Watch(ctx context.Context) (<-chan certificate.MRCEvent, e
 			mrc := obj.(*v1alpha2.MeshRootCertificate)
 			log.Debug().Msgf("received MRC add event for MRC %s/%s", mrc.GetNamespace(), mrc.GetName())
 			eventChan <- certificate.MRCEvent{
-				Type: certificate.MRCEventAdded,
-				MRC:  mrc,
+				MRCName: mrc.Name,
 			}
 		},
 		// We don't really care about the previous version
@@ -43,8 +42,7 @@ func (m *MRCComposer) Watch(ctx context.Context) (<-chan certificate.MRCEvent, e
 			mrc := newObj.(*v1alpha2.MeshRootCertificate)
 			log.Debug().Msgf("received MRC update event for MRC %s/%s", mrc.GetNamespace(), mrc.GetName())
 			eventChan <- certificate.MRCEvent{
-				Type: certificate.MRCEventUpdated,
-				MRC:  mrc,
+				MRCName: mrc.Name,
 			}
 		},
 		// We don't care about deletes because the only deletes that should

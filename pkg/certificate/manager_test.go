@@ -9,9 +9,7 @@ import (
 	"github.com/cskr/pubsub"
 	tassert "github.com/stretchr/testify/assert"
 	trequire "github.com/stretchr/testify/require"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	"github.com/openservicemesh/osm/pkg/certificate/pem"
 	"github.com/openservicemesh/osm/pkg/constants"
 	"github.com/openservicemesh/osm/pkg/identity"
@@ -328,45 +326,7 @@ func TestHandleMRCEvent(t *testing.T) {
 		{
 			name: "success",
 			mrcEvent: MRCEvent{
-				Type: MRCEventAdded,
-				MRC: &v1alpha2.MeshRootCertificate{
-					ObjectMeta: v1.ObjectMeta{
-						Name: "my-mrc",
-					},
-					Spec: v1alpha2.MeshRootCertificateSpec{
-						TrustDomain: "foo.bar.com",
-					},
-					Status: v1alpha2.MeshRootCertificateStatus{
-						State: constants.MRCStateActive,
-						// unspecified component status will be unknown.
-						Conditions: []v1alpha2.MeshRootCertificateCondition{
-							{
-								Type:   constants.MRCConditionTypeReady,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-							{
-								Type:   constants.MRCConditionTypeAccepted,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-							{
-								Type:   constants.MRCConditionTypeIssuingRollout,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-							{
-								Type:   constants.MRCConditionTypeValidatingRollout,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-							{
-								Type:   constants.MRCConditionTypeIssuingRollback,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-							{
-								Type:   constants.MRCConditionTypeValidatingRollback,
-								Status: constants.MRCConditionStatusUnknown,
-							},
-						},
-					},
-				},
+				MRCName: "my-mrc",
 			},
 			wantSigningIssuer:    issuer{Issuer: &fakeIssuer{}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},
 			wantValidatingIssuer: issuer{Issuer: &fakeIssuer{}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},

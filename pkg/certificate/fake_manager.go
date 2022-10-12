@@ -5,13 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 
 	"github.com/openservicemesh/osm/pkg/certificate/pem"
-	"github.com/openservicemesh/osm/pkg/constants"
 )
 
 var (
@@ -47,55 +43,7 @@ func (c *fakeMRCClient) Watch(ctx context.Context) (<-chan MRCEvent, error) {
 	ch := make(chan MRCEvent)
 	go func() {
 		ch <- MRCEvent{
-			Type: MRCEventAdded,
-			MRC: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "osm-mesh-root-certificate",
-					Namespace: "osm-system",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					TrustDomain: "fake.domain.com",
-					Provider: v1alpha2.ProviderSpec{
-						Tresor: &v1alpha2.TresorProviderSpec{
-							CA: v1alpha2.TresorCASpec{
-								SecretRef: v1.SecretReference{
-									Name:      "osm-ca-bundle",
-									Namespace: "osm-system",
-								},
-							},
-						},
-					},
-				},
-				Status: v1alpha2.MeshRootCertificateStatus{
-					State: constants.MRCStateActive,
-					Conditions: []v1alpha2.MeshRootCertificateCondition{
-						{
-							Type:   constants.MRCConditionTypeReady,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-						{
-							Type:   constants.MRCConditionTypeAccepted,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-						{
-							Type:   constants.MRCConditionTypeIssuingRollout,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-						{
-							Type:   constants.MRCConditionTypeValidatingRollout,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-						{
-							Type:   constants.MRCConditionTypeIssuingRollback,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-						{
-							Type:   constants.MRCConditionTypeValidatingRollback,
-							Status: constants.MRCConditionStatusUnknown,
-						},
-					},
-				},
-			},
+			MRCName: "osm-mesh-root-certificate",
 		}
 		close(ch)
 	}()
