@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -215,7 +214,6 @@ func basicCertRotationScenario(installOptions ...InstallOsmOpt) {
 	// 4. Verify bootstrap certs updated
 	// 5. verify xds cert updated (not sure how?)
 	// 5. Verify traffic
-
 }
 
 func createMeshRootCertificate(name string, intent v1alpha2.MeshRootCertificateIntent, certificateManagerType string) (*v1alpha2.MeshRootCertificate, error) {
@@ -362,7 +360,7 @@ func createVaultMRC(name string, intent v1alpha2.MeshRootCertificateIntent) (*v1
 		}, metav1.CreateOptions{})
 }
 
-func verifiyUpdatedPodCert(pod *v1.Pod) {
+/*func verifiyUpdatedPodCert(pod *v1.Pod) {
 	By("Verifying pod has updated certificates")
 
 	// It can take a moment for envoy to load the certs
@@ -372,7 +370,7 @@ func verifiyUpdatedPodCert(pod *v1.Pod) {
 		Td.T.Logf("stdout:\n%s", stdout)
 		return stdout.String(), err
 	}, 10*time.Second).Should(ContainSubstring(fmt.Sprintf("\"uri\": \"spiffe://cluster.local/%s/%s", pod.Spec.ServiceAccountName, pod.Namespace)))
-}
+}*/
 
 func verifySuccessfulPodConnection(srcPod, dstPod *v1.Pod, serverSvc v1.Service, clientContainerName string, destinationPort int) {
 	By("Waiting for repeated request success")

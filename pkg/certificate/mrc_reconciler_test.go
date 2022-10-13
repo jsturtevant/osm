@@ -10,34 +10,6 @@ import (
 	tassert "github.com/stretchr/testify/assert"
 )
 
-func TestGetNamespacedMRC(t *testing.T) {
-	tests := []struct {
-		name           string
-		mrc            *v1alpha2.MeshRootCertificate
-		expectedOutput string
-	}{
-		{
-			name: "Valid MRC with namespace and name",
-			mrc: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "Namespace",
-					Name:      "Name",
-				},
-			},
-			expectedOutput: "Namespace/Name",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert := tassert.New(t)
-
-			namespacedMRC := getNamespacedMRC(tt.mrc)
-			assert.Equal(tt.expectedOutput, namespacedMRC)
-
-		})
-	}
-}
-
 func TestValidateMRCIntents(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -63,7 +35,7 @@ func TestValidateMRCIntents(t *testing.T) {
 					Intent: v1alpha2.ActiveIntent,
 				},
 			},
-			result: ErrInvalidMRCIntent,
+			result: ErrUnknownMRCIntent,
 		},
 		{
 			name: "Invalid mrc intent combination of active and active",
@@ -99,7 +71,6 @@ func TestValidateMRCIntents(t *testing.T) {
 			assert := tassert.New(t)
 			err := ValidateMRCIntents(tt.mrc1, tt.mrc2)
 			assert.Equal(tt.result, err)
-
 		})
 	}
 }
@@ -117,7 +88,7 @@ func TestHandleSingleMRC(t *testing.T) {
 					Intent: v1alpha2.PassiveIntent,
 				},
 			},
-			result: ErrInvalidMRCIntent,
+			result: ErrExpectedActiveMRC,
 		},
 	}
 	for _, tt := range tests {

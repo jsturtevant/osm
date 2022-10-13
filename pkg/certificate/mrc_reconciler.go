@@ -14,12 +14,14 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 		return err
 	}
 
-	mrcListLen := len(mrcList)
-	if mrcListLen == 0 {
-		log.Error().Err(ErrMRCNotFound).Msgf("when handling MRC event for MRC %s, found no MRCs in OSM control plane namespace", event.MRCName)
-		return ErrMRCNotFound
+	if len(mrcList) == 0 {
+		msg := fmt.Sprintf("when handling MRC event for MRC %s, found no MRCs in OSM control plane namespace", event.MRCName)
+		log.Error().Msg(msg)
+		return fmt.Errorf(msg)
 	}
-	if mrcListLen > 2 {
+
+	filteredMRCList := filterOutInactiveMRCs(mrcList)
+	if len(filteredMRCList) > 2 {
 		log.Error().Err(ErrNumMRCExceedsMaxSupported).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrNumMRCExceedsMaxSupported)).
 			Msgf("expected 2 or less MRCs in the OSM control plane namespace, found %d", len(mrcList))
 		return ErrNumMRCExceedsMaxSupported
@@ -27,12 +29,12 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 
 	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
 	mrc1 = mrcList[0]
-	if mrcListLen == 1 {
+	if len(filteredMRCList) == 1 {
 		return m.handleSingleMRC(mrc1)
 	}
 
 	mrc2 = mrcList[1]
-	log.Debug().Msgf("")
+	log.Debug().Msg("validating MRC intent combination")
 	if err = ValidateMRCIntents(mrc1, mrc2); err != nil {
 		return err
 	}
@@ -47,8 +49,8 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 
 func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
 	if mrc.Spec.Intent != v1alpha2.ActiveIntent {
-		log.Error().Err(ErrInvalidMRCIntent).Msgf("expected single MRC with %s intent, found %s", v1alpha2.ActiveIntent, mrc.Spec.Intent)
-		return ErrInvalidMRCIntent
+		log.Error().Err(ErrExpectedActiveMRC).Msgf("expected single MRC with %s intent, found %s", v1alpha2.ActiveIntent, mrc.Spec.Intent)
+		return ErrExpectedActiveMRC
 	}
 
 	issuer, err := m.getCertIssuer(mrc)
@@ -60,25 +62,16 @@ func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
 }
 
 var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alpha2.MeshRootCertificateIntent{
-	// TODO(jaellio): considered nested map. Intent slice is small so iterating over the slice is fine for now
 	v1alpha2.ActiveIntent: {
 		v1alpha2.PassiveIntent,
-		v1alpha2.DeactiveIntent,
-		v1alpha2.InactiveIntent,
 	},
 	v1alpha2.PassiveIntent: {
-		v1alpha2.ActiveIntent,
-		v1alpha2.DeactiveIntent,
-	},
-	v1alpha2.DeactiveIntent: {
-		v1alpha2.ActiveIntent,
 		v1alpha2.PassiveIntent,
-	},
-	v1alpha2.InactiveIntent: {
 		v1alpha2.ActiveIntent,
 	},
 }
 
+// ValidateMRCIntents validates the intent combination of MRCs
 func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	if mrc1 == nil || mrc2 == nil {
 		msg := "unexpected nil MRC provided when validating MRC intents"
@@ -91,9 +84,8 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 
 	validIntents, ok := validMRCIntentCombinations[intent1]
 	if !ok {
-		log.Error().Err(ErrInvalidMRCIntent).
-			Msgf("unable to find %s intent in set of valid intents. Invalid combination of %s intent and %s intent", intent1, intent1, intent2)
-		return ErrInvalidMRCIntent
+		log.Error().Err(ErrUnknownMRCIntent).Msgf("unable to find %s intent in set of valid intents. Invalid combination of %s intent and %s intent", intent1, intent1, intent2)
+		return ErrUnknownMRCIntent
 	}
 
 	for _, intent := range validIntents {
@@ -108,12 +100,9 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	return ErrInvalidMRCIntentCombination
 }
 
-// TODO(jeallio): simplify to different data structure rather than user switch case
-// or pass intent directly to set issuers. It has already be
 func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	if mrc1 == nil || mrc2 == nil {
-		log.Error().Err(ErrMRCNotFound).Msg("cannot validate nil mrc")
-		return ErrMRCNotFound
+		return fmt.Errorf("expected MRC to not be nil setting issuers")
 	}
 
 	issuer1, err := m.getCertIssuer(mrc1)
@@ -135,12 +124,6 @@ func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 		case v1alpha2.PassiveIntent:
 			signingIssuer = issuer1
 			validatingIssuer = issuer2
-		case v1alpha2.InactiveIntent:
-			signingIssuer = issuer1
-			validatingIssuer = issuer1
-		case v1alpha2.DeactiveIntent:
-			signingIssuer = issuer2
-			validatingIssuer = issuer1
 		default:
 			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
@@ -151,7 +134,7 @@ func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 		case v1alpha2.ActiveIntent:
 			signingIssuer = issuer2
 			validatingIssuer = issuer1
-		case v1alpha2.DeactiveIntent:
+		case v1alpha2.PassiveIntent:
 			signingIssuer = issuer1
 			validatingIssuer = issuer2
 		default:
@@ -159,31 +142,10 @@ func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
 			return ErrInvalidMRCIntentCombination
 		}
-	case v1alpha2.DeactiveIntent:
-		switch intent2 {
-		case v1alpha2.ActiveIntent, v1alpha2.PassiveIntent:
-			signingIssuer = issuer2
-			validatingIssuer = issuer1
-		default:
-			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return ErrInvalidMRCIntentCombination
-		}
-	case v1alpha2.InactiveIntent:
-		switch intent2 {
-		case v1alpha2.ActiveIntent:
-			signingIssuer = issuer2
-			validatingIssuer = issuer2
-		default:
-			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return ErrInvalidMRCIntentCombination
-		}
 	default:
-		// TODO(jaellio): create errcode for ErrInvalidMRCIntent
-		// log.Error().Err(ErrInvalidMRCIntent).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntent)).
-		//		Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-		return ErrInvalidMRCIntent
+		// TODO(jaellio): create errcode for ErrUnknownMRCIntent
+		log.Error().Err(ErrUnknownMRCIntent).Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
+		return ErrUnknownMRCIntent
 	}
 
 	return m.updateIssuers(signingIssuer, validatingIssuer)
@@ -207,6 +169,13 @@ func (m *Manager) getCertIssuer(mrc *v1alpha2.MeshRootCertificate) (*issuer, err
 	return c, nil
 }
 
-func getNamespacedMRC(mrc *v1alpha2.MeshRootCertificate) string {
-	return fmt.Sprintf("%s/%s", mrc.Namespace, mrc.Name)
+func filterOutInactiveMRCs(mrcList []*v1alpha2.MeshRootCertificate) []*v1alpha2.MeshRootCertificate {
+	n := 0
+	for _, mrc := range mrcList {
+		if mrc.Spec.Intent != v1alpha2.InactiveIntent {
+			mrcList[n] = mrc
+			n++
+		}
+	}
+	return mrcList[:n]
 }

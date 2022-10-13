@@ -123,16 +123,15 @@ type TresorCASpec struct {
 type MeshRootCertificateIntent string
 
 const (
-	// ActiveIntent
+	// ActiveIntent means the settings and certificate provider in this MRC are used for signing and
+	// validating certificates.
 	ActiveIntent MeshRootCertificateIntent = "active"
 
-	// PassiveIntent
+	// PassiveIntent means the settings and certificate provider in this MRC are used for validating
+	// certificates.
 	PassiveIntent MeshRootCertificateIntent = "passive"
 
-	// DeactiveIntent
-	DeactiveIntent MeshRootCertificateIntent = "deactive"
-
-	// InactiveIntent
+	// InactiveIntent means the settings and certificate provider in this MRC no longer in use.
 	InactiveIntent MeshRootCertificateIntent = "inactive"
 )
 
