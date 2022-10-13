@@ -13,7 +13,6 @@ import (
 	fakeKube "k8s.io/client-go/kubernetes/fake"
 
 	configv1alpha2 "github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
-	"github.com/openservicemesh/osm/pkg/constants"
 	configClientset "github.com/openservicemesh/osm/pkg/gen/client/config/clientset/versioned"
 	fakeConfig "github.com/openservicemesh/osm/pkg/gen/client/config/clientset/versioned/fake"
 )
@@ -94,35 +93,6 @@ var testMeshRootCertificate = &configv1alpha2.MeshRootCertificate{
 		Name:      meshRootCertificateName,
 	},
 	Spec: configv1alpha2.MeshRootCertificateSpec{},
-	Status: configv1alpha2.MeshRootCertificateStatus{
-		State: constants.MRCStatePending,
-		Conditions: []configv1alpha2.MeshRootCertificateCondition{
-			{
-				Type:   constants.MRCConditionTypeReady,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeAccepted,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeIssuingRollout,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeValidatingRollout,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeIssuingRollback,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeValidatingRollback,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-		},
-	},
 }
 
 var testPresetMeshRootCertificate = &corev1.ConfigMap{
@@ -136,6 +106,7 @@ var testPresetMeshRootCertificate = &corev1.ConfigMap{
 	},
 	Data: map[string]string{
 		presetMeshRootCertificateJSONKey: `{
+"intent": "Active",
 "provider": {
 	"tresor": {
 	 "ca": {
@@ -388,10 +359,9 @@ func TestCreateMeshRootCertificate(t *testing.T) {
 				assert.Error(err)
 			}
 
-			mrc, err := b.configClient.ConfigV1alpha2().MeshRootCertificates(b.namespace).Get(context.TODO(), meshRootCertificateName, metav1.GetOptions{})
+			_, err = b.configClient.ConfigV1alpha2().MeshRootCertificates(b.namespace).Get(context.TODO(), meshRootCertificateName, metav1.GetOptions{})
 			if tc.expectDefaultMeshRootCertificate {
 				assert.NoError(err)
-				assert.Equal(constants.MRCStatePending, mrc.Status.State)
 			} else {
 				assert.Error(err)
 			}

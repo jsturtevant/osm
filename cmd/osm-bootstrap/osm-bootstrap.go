@@ -433,36 +433,6 @@ func (b *bootstrap) createMeshRootCertificate() error {
 		return err
 	}
 
-	createdMRC.Status = configv1alpha2.MeshRootCertificateStatus{
-		State: constants.MRCStatePending,
-		Conditions: []configv1alpha2.MeshRootCertificateCondition{
-			{
-				Type:   constants.MRCConditionTypeReady,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeAccepted,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeIssuingRollout,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeValidatingRollout,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeIssuingRollback,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-			{
-				Type:   constants.MRCConditionTypeValidatingRollback,
-				Status: constants.MRCConditionStatusUnknown,
-			},
-		},
-	}
-
 	_, err = b.configClient.ConfigV1alpha2().MeshRootCertificates(b.namespace).UpdateStatus(context.Background(), createdMRC, metav1.UpdateOptions{})
 	if apierrors.IsAlreadyExists(err) {
 		log.Info().Msgf("MeshRootCertificate status already exists in %s. Skip creating.", b.namespace)

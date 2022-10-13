@@ -69,7 +69,10 @@ func (c *fakeMRCClient) GetCertIssuerForMRC(mrc *v1alpha2.MeshRootCertificate) (
 // List returns the single, pre-generated MRC. It is intended to implement the certificate.MRCClient interface.
 func (c *fakeMRCClient) ListMeshRootCertificates() ([]*v1alpha2.MeshRootCertificate, error) {
 	// return single empty object in the list.
-	return []*v1alpha2.MeshRootCertificate{{Spec: v1alpha2.MeshRootCertificateSpec{TrustDomain: "fake.example.com"}}}, nil
+	return []*v1alpha2.MeshRootCertificate{{Spec: v1alpha2.MeshRootCertificateSpec{
+		TrustDomain: "fake.example.com",
+		Intent:      v1alpha2.ActiveIntent,
+	}}}, nil
 }
 
 func (c *fakeMRCClient) Watch(ctx context.Context) (<-chan certificate.MRCEvent, error) {

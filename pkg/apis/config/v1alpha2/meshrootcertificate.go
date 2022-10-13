@@ -124,16 +124,16 @@ type MeshRootCertificateIntent string
 
 const (
 	// ActiveIntent
-	ActiveIntent MeshRootCertificateIntent = "Active"
+	ActiveIntent MeshRootCertificateIntent = "active"
 
 	// PassiveIntent
-	PassiveIntent MeshRootCertificateIntent = "Passive"
+	PassiveIntent MeshRootCertificateIntent = "passive"
 
 	// DeactiveIntent
-	DeactiveIntent MeshRootCertificateIntent = "Deactive"
+	DeactiveIntent MeshRootCertificateIntent = "deactive"
 
 	// InactiveIntent
-	InactiveIntent MeshRootCertificateIntent = "Inactive"
+	InactiveIntent MeshRootCertificateIntent = "inactive"
 )
 
 // MeshRootCertificateComponentStatus specifies the status of the certificate component,

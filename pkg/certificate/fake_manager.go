@@ -28,6 +28,7 @@ func (c *fakeMRCClient) ListMeshRootCertificates() ([]*v1alpha2.MeshRootCertific
 	return []*v1alpha2.MeshRootCertificate{{
 		Spec: v1alpha2.MeshRootCertificateSpec{
 			TrustDomain: "fake.domain.com",
+			Intent:      v1alpha2.ActiveIntent,
 		},
 	}}, nil
 }

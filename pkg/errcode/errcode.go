@@ -154,6 +154,10 @@ const (
 	// ErrInvalidMRCIntentCombination indicates the combination of MRC intent values during root certificate rotation
 	// is invalid
 	ErrInvalidMRCIntentCombination
+
+	// ErrNumMRCExceedsMaxSupported indicated there are more MRCs in the control plane namespace than the max
+	// supported value
+	ErrNumMRCExceedsMaxSupported
 )
 
 // Range 4100-4150 reserved for PubSub system

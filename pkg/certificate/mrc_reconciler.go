@@ -8,22 +8,26 @@ import (
 )
 
 func (m *Manager) handleMRCEvent(event MRCEvent) error {
+	log.Debug().Msgf("handling MRC event for MRC %s", event.MRCName)
 	mrcList, err := m.mrcClient.ListMeshRootCertificates()
 	if err != nil {
 		return err
 	}
-	if len(mrcList) == 0 {
-		// TODO(ajellio)
-		return fmt.Errorf("")
+
+	mrcListLen := len(mrcList)
+	if mrcListLen == 0 {
+		log.Error().Err(ErrMRCNotFound).Msgf("when handling MRC event for MRC %s, found no MRCs in OSM control plane namespace", event.MRCName)
+		return ErrMRCNotFound
 	}
-	if len(mrcList) > 2 {
-		// TODO(jaellio): create error and errcode for more than 2 mrcs
-		return fmt.Errorf("More than 2 MRCs found in control plane namespace. Ignoring event.")
+	if mrcListLen > 2 {
+		log.Error().Err(ErrNumMRCExceedsMaxSupported).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrNumMRCExceedsMaxSupported)).
+			Msgf("expected 2 or less MRCs in the OSM control plane namespace, found %d", len(mrcList))
+		return ErrNumMRCExceedsMaxSupported
 	}
 
 	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
 	mrc1 = mrcList[0]
-	if len(mrcList) == 1 {
+	if mrcListLen == 1 {
 		return m.handleSingleMRC(mrc1)
 	}
 
@@ -34,7 +38,8 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 	}
 
 	if err = m.setIssuers(mrc1, mrc2); err != nil {
-		// TODO(jaellio): set error on MRC?
+		// TODO(jaellio): set status.state to error on MRC and potentially block on responding to MRC events corresponding to MRCs with
+		// status.state set to error
 		return err
 	}
 	return nil
@@ -42,6 +47,7 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 
 func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
 	if mrc.Spec.Intent != v1alpha2.ActiveIntent {
+		log.Error().Err(ErrInvalidMRCIntent).Msgf("expected single MRC with %s intent, found %s", v1alpha2.ActiveIntent, mrc.Spec.Intent)
 		return ErrInvalidMRCIntent
 	}
 
@@ -55,28 +61,29 @@ func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
 
 var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alpha2.MeshRootCertificateIntent{
 	// TODO(jaellio): considered nested map. Intent slice is small so iterating over the slice is fine for now
-	v1alpha2.ActiveIntent: []v1alpha2.MeshRootCertificateIntent{
+	v1alpha2.ActiveIntent: {
 		v1alpha2.PassiveIntent,
 		v1alpha2.DeactiveIntent,
 		v1alpha2.InactiveIntent,
 	},
-	v1alpha2.PassiveIntent: []v1alpha2.MeshRootCertificateIntent{
+	v1alpha2.PassiveIntent: {
 		v1alpha2.ActiveIntent,
 		v1alpha2.DeactiveIntent,
 	},
-	v1alpha2.DeactiveIntent: []v1alpha2.MeshRootCertificateIntent{
+	v1alpha2.DeactiveIntent: {
 		v1alpha2.ActiveIntent,
 		v1alpha2.PassiveIntent,
 	},
-	v1alpha2.InactiveIntent: []v1alpha2.MeshRootCertificateIntent{
+	v1alpha2.InactiveIntent: {
 		v1alpha2.ActiveIntent,
 	},
 }
 
 func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	if mrc1 == nil || mrc2 == nil {
-		log.Error().Err(ErrMRCNotFound).Msg("cannot validate nil mrc")
-		return ErrMRCNotFound
+		msg := "unexpected nil MRC provided when validating MRC intents"
+		log.Error().Msg(msg)
+		return fmt.Errorf(msg)
 	}
 
 	intent1 := mrc1.Spec.Intent
@@ -91,7 +98,7 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 
 	for _, intent := range validIntents {
 		if intent2 == intent {
-			log.Debug().Msgf("valid intent combination")
+			log.Debug().Msgf("verified valid intent combination of %s intent and %s intent", intent1, intent2)
 			return nil
 		}
 	}

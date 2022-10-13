@@ -788,6 +788,7 @@ func TestConfigUpdateStatus(t *testing.T) {
 					Namespace: "osm-system",
 				},
 				Spec: configv1alpha2.MeshRootCertificateSpec{
+					Intent: configv1alpha2.ActiveIntent,
 					Provider: configv1alpha2.ProviderSpec{
 						Tresor: &configv1alpha2.TresorProviderSpec{
 							CA: configv1alpha2.TresorCASpec{
@@ -806,6 +807,7 @@ func TestConfigUpdateStatus(t *testing.T) {
 					Namespace: "osm-system",
 				},
 				Spec: configv1alpha2.MeshRootCertificateSpec{
+					Intent: configv1alpha2.ActiveIntent,
 					Provider: configv1alpha2.ProviderSpec{
 						Tresor: &configv1alpha2.TresorProviderSpec{
 							CA: configv1alpha2.TresorCASpec{
@@ -1338,6 +1340,7 @@ func TestListMeshRootCertificates(t *testing.T) {
 			Namespace: "osm-system",
 		},
 		Spec: configv1alpha2.MeshRootCertificateSpec{
+			Intent: configv1alpha2.ActiveIntent,
 			Provider: configv1alpha2.ProviderSpec{
 				Tresor: &configv1alpha2.TresorProviderSpec{
 					CA: configv1alpha2.TresorCASpec{
@@ -1348,9 +1351,6 @@ func TestListMeshRootCertificates(t *testing.T) {
 					},
 				},
 			},
-		},
-		Status: configv1alpha2.MeshRootCertificateStatus{
-			State: constants.MRCStateActive,
 		},
 	}
 	mrcClient := fakeConfigClient.NewSimpleClientset(mrc)

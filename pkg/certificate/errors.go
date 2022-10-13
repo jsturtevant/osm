@@ -30,3 +30,6 @@ var ErrInvalidMRCIntentCombination = errors.New("invalid mrc intent combination"
 
 // ErrMRCNotFound
 var ErrMRCNotFound = errors.New("mrc not found")
+
+// ErrNumMRCExceedsMaxSupported
+var ErrNumMRCExceedsMaxSupported = errors.New("found more than the max number of MRCs supported in the control plane namespace")
