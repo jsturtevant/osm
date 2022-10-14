@@ -16,7 +16,7 @@ import (
 
 const (
 	rootCertOrganization = "Open Service Mesh Tresor"
-	initialRootName      = "osm-mesh-root-certificate"
+	initialRootName      = constants.DefaultMeshRootCertificateName
 )
 
 type fakeMRCClient struct {

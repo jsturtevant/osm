@@ -156,6 +156,7 @@ func (m *Manager) updateIssuers(signing, validating *issuer) error {
 	defer m.mu.Unlock()
 	m.signingIssuer = signing
 	m.validatingIssuer = validating
+	log.Trace().Msgf("setting issuers for validating[%s] and signing[%s]", validating.ID, signing.ID)
 	return nil
 }
 
