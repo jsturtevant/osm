@@ -64,9 +64,9 @@ func (m *Manager) handleSingleMRC(mrc *v1alpha2.MeshRootCertificate) error {
 var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alpha2.MeshRootCertificateIntent{
 	v1alpha2.ActiveIntent: {
 		v1alpha2.PassiveIntent,
+		v1alpha2.ActiveIntent,
 	},
 	v1alpha2.PassiveIntent: {
-		v1alpha2.PassiveIntent,
 		v1alpha2.ActiveIntent,
 	},
 }
@@ -124,6 +124,9 @@ func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 		case v1alpha2.PassiveIntent:
 			signingIssuer = issuer1
 			validatingIssuer = issuer2
+		case v1alpha2.ActiveIntent:
+			signingIssuer = issuer1
+			validatingIssuer = issuer2
 		default:
 			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
@@ -134,9 +137,6 @@ func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 		case v1alpha2.ActiveIntent:
 			signingIssuer = issuer2
 			validatingIssuer = issuer1
-		case v1alpha2.PassiveIntent:
-			signingIssuer = issuer1
-			validatingIssuer = issuer2
 		default:
 			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)

@@ -46,14 +46,14 @@ var _ = OSMDescribe("MeshRootCertificate",
 	})
 
 // basicCerRotationScenario rotates a new cert in through the follow pattern:
-// | Step  | MRC1 old   | MRC2 new     | signer  | validator |
-// | ----- | ---------- | ------------ | ------- | --------- |
-// | 1     | active     |              | mcr1    | mcr1      |
-// | 2     | active     | passive      | mcr1    | mcr2      |
-// | 3     | passive    | passive      | mcr2    | mcr1      |
-// | 4     | passive    | active       | mcr2    | mcr1      |
-// | 5     | inactive   | active       | mcr2    | mcr2 	 |
-// | 5     |            | active       | mcr2    | mcr2      |
+// | Step  | MRC1 old   | MRC2 new     | signer    | validator |
+// | ----- | ---------- | ------------ | --------- | --------- |
+// | 1     | active     |              | mcr1      | mcr1      |
+// | 2     | active     | passive      | mcr1      | mcr2      |
+// | 3     | active     | active       | mcr2/mrc1 | mcr1/mrc2 |
+// | 4     | passive    | active       | mcr2      | mcr1      |
+// | 5     | inactive   | active       | mcr2      | mcr2 	   |
+// | 5     |            | active       | mcr2      | mcr2      |
 func basicCertRotationScenario(installOptions ...InstallOsmOpt) {
 	By("installing with MRC enabled")
 	installOptions = append(installOptions, WithMeshRootCertificateEnabled())
@@ -94,8 +94,8 @@ func basicCertRotationScenario(installOptions ...InstallOsmOpt) {
 	verifyCertRotation(clientPod, serverPod, constants.DefaultMeshRootCertificateName, newCertName)
 	verifySuccessfulPodConnection(clientPod, serverPod, serverSvc)
 
-	By("moving original cert from active to Passive")
-	updateCertificate(constants.DefaultMeshRootCertificateName, v1alpha2.PassiveIntent)
+	By("moving new cert from Passive to Active")
+	updateCertificate(newCertName, v1alpha2.ActiveIntent)
 
 	By("checking HTTP traffic for client -> server pod after new cert is rotated in for validation")
 	// At this stage when they are both same intent it isn't deterministic which is validating and signing
@@ -103,8 +103,8 @@ func basicCertRotationScenario(installOptions ...InstallOsmOpt) {
 	// verifyCertRotation(clientPod, serverPod, newCertName, constants.DefaultMeshRootCertificateName)
 	verifySuccessfulPodConnection(clientPod, serverPod, serverSvc)
 
-	By("moving new cert from Passive to Active")
-	updateCertificate(newCertName, v1alpha2.ActiveIntent)
+	By("moving original cert from Active to Passive")
+	updateCertificate(constants.DefaultMeshRootCertificateName, v1alpha2.PassiveIntent)
 
 	By("checking HTTP traffic for client -> server pod after new cert is rotated in for signing")
 	verifyCertRotation(clientPod, serverPod, newCertName, constants.DefaultMeshRootCertificateName)
