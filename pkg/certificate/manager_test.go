@@ -315,44 +315,6 @@ func TestIssueCertificate(t *testing.T) {
 	})
 }
 
-func TestHandleMRCEvent(t *testing.T) {
-	testCases := []struct {
-		name                 string
-		mrcEvent             MRCEvent
-		wantErr              bool
-		wantSigningIssuer    issuer
-		wantValidatingIssuer issuer
-	}{
-		{
-			name: "success",
-			mrcEvent: MRCEvent{
-				MRCName: "my-mrc",
-			},
-			wantSigningIssuer:    issuer{Issuer: &fakeIssuer{}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},
-			wantValidatingIssuer: issuer{Issuer: &fakeIssuer{}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			assert := tassert.New(t)
-			m := &Manager{
-				mrcClient: &fakeMRCClient{},
-			}
-
-			err := m.handleMRCEvent(tt.mrcEvent)
-			if !tt.wantErr {
-				assert.NoError(err)
-			} else {
-				assert.Error(err)
-			}
-
-			assert.Equal(tt.wantSigningIssuer, *m.signingIssuer)
-			assert.Equal(tt.wantValidatingIssuer, *m.validatingIssuer)
-		})
-	}
-}
-
 func TestSubscribeRotations(t *testing.T) {
 	assert := tassert.New(t)
 	cnPrefix1 := "fake-cert-cn1"

@@ -15,7 +15,9 @@ var (
 )
 
 // fakeMRCClient implements the MRCClient interface
-type fakeMRCClient struct{}
+type fakeMRCClient struct {
+	mrcList []*v1alpha2.MeshRootCertificate
+}
 
 // GetCertIssuerForMRC returns a fakeIssuer and pre-generated RootCertificate. It is intended to implement the certificate.MRCClient interface.
 func (c *fakeMRCClient) GetCertIssuerForMRC(mrc *v1alpha2.MeshRootCertificate) (Issuer, pem.RootCertificate, error) {
@@ -25,12 +27,7 @@ func (c *fakeMRCClient) GetCertIssuerForMRC(mrc *v1alpha2.MeshRootCertificate) (
 // ListMeshRootCertificates returns the single, pre-generated MRC. It is intended to implement the certificate.MRCClient interface.
 func (c *fakeMRCClient) ListMeshRootCertificates() ([]*v1alpha2.MeshRootCertificate, error) {
 	// return single empty object in the list.
-	return []*v1alpha2.MeshRootCertificate{{
-		Spec: v1alpha2.MeshRootCertificateSpec{
-			TrustDomain: "fake.domain.com",
-			Intent:      v1alpha2.ActiveIntent,
-		},
-	}}, nil
+	return c.mrcList, nil
 }
 
 // UpdateMeshRootCertificate updates the given mesh root certificate.

@@ -7,7 +7,126 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
+	"github.com/openservicemesh/osm/pkg/certificate/pem"
 )
+
+var activeMRC1 = &v1alpha2.MeshRootCertificate{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "mrc1",
+	},
+	Spec: v1alpha2.MeshRootCertificateSpec{
+		Intent: v1alpha2.ActiveIntent,
+	},
+}
+
+var passiveMRC1 = &v1alpha2.MeshRootCertificate{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "mrc1",
+	},
+	Spec: v1alpha2.MeshRootCertificateSpec{
+		Intent: v1alpha2.PassiveIntent,
+	},
+}
+
+func TestHandleMRCEvent(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		mrcEvent             MRCEvent
+		mrcList              []*v1alpha2.MeshRootCertificate
+		expectedError        bool
+		wantSigningIssuer    *issuer
+		wantValidatingIssuer *issuer
+	}{
+		{
+			name: "no issuers set when no MRCs found",
+			mrcEvent: MRCEvent{
+				MRCName: "my-mrc",
+			},
+			expectedError:        true,
+			mrcList:              []*v1alpha2.MeshRootCertificate{},
+			wantSigningIssuer:    nil,
+			wantValidatingIssuer: nil,
+		},
+		{
+			name: "no issuers set when more than 2 MRCs found",
+			mrcEvent: MRCEvent{
+				MRCName: "my-mrc",
+			},
+			expectedError: true,
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-mrc",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						TrustDomain: "foo.bar.com",
+						Intent:      v1alpha2.ActiveIntent,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-mrc1",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						TrustDomain: "foo.bar.com",
+						Intent:      v1alpha2.ActiveIntent,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-mrc2",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						TrustDomain: "foo.bar.com",
+						Intent:      v1alpha2.PassiveIntent,
+					},
+				},
+			},
+			wantSigningIssuer:    nil,
+			wantValidatingIssuer: nil,
+		},
+		{
+			name: "set issuers for single MRC",
+			mrcEvent: MRCEvent{
+				MRCName: "my-mrc",
+			},
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-mrc",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						TrustDomain: "foo.bar.com",
+						Intent:      v1alpha2.ActiveIntent,
+					},
+				},
+			},
+			wantSigningIssuer:    &issuer{Issuer: &fakeIssuer{id: "my-mrc"}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},
+			wantValidatingIssuer: &issuer{Issuer: &fakeIssuer{id: "my-mrc"}, ID: "my-mrc", TrustDomain: "foo.bar.com", CertificateAuthority: pem.RootCertificate("rootCA")},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := tassert.New(t)
+			m := &Manager{
+				mrcClient: &fakeMRCClient{
+					mrcList: tt.mrcList,
+				},
+			}
+
+			err := m.handleMRCEvent(tt.mrcEvent)
+			if !tt.expectedError {
+				assert.NoError(err)
+			} else {
+				assert.Error(err)
+			}
+
+			assert.Equal(tt.wantSigningIssuer, m.signingIssuer)
+			assert.Equal(tt.wantValidatingIssuer, m.validatingIssuer)
+		})
+	}
+}
 
 func TestValidateMRCIntents(t *testing.T) {
 	tests := []struct {
@@ -23,13 +142,9 @@ func TestValidateMRCIntents(t *testing.T) {
 			result: ErrUnexpectedNilMRC,
 		},
 		{
-			name: "Single invalid mrc intent passive",
-			mrc1: &v1alpha2.MeshRootCertificate{
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.PassiveIntent,
-				},
-			},
-			mrc2:   nil,
+			name:   "Single invalid mrc intent passive",
+			mrc1:   passiveMRC1,
+			mrc2:   passiveMRC1,
 			result: ErrExpectedActiveMRC,
 		},
 		{
@@ -89,13 +204,9 @@ func TestValidateMRCIntents(t *testing.T) {
 			result: nil,
 		},
 		{
-			name: "Single valid mrc intent active",
-			mrc1: nil,
-			mrc2: &v1alpha2.MeshRootCertificate{
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
+			name:   "Single valid mrc intent active",
+			mrc1:   activeMRC1,
+			mrc2:   activeMRC1,
 			result: nil,
 		},
 	}
@@ -124,49 +235,20 @@ func TestShouldSetIssuers(t *testing.T) {
 			result: false,
 		},
 		{
-			name: "mrc1 is active and issuers already set",
-			mrc1: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mrc1",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
-			mrc2:                      nil,
+			name:                      "single mrc is active and issuers already set",
+			mrc1:                      activeMRC1,
+			mrc2:                      activeMRC1,
 			result:                    false,
 			currentSigningIssuerID:    "mrc1",
 			currentValidatingIssuerID: "mrc1",
 		},
 		{
-			name: "mrc1 is active and not set",
-			mrc1: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mrc1",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
-			mrc2:                      nil,
+			name:                      "single mrc is active and issuers not set",
+			mrc1:                      activeMRC1,
+			mrc2:                      activeMRC1,
 			result:                    true,
-			currentSigningIssuerID:    "mrc",
-			currentValidatingIssuerID: "mrc",
-		},
-		{
-			name: "mrc2 is active and issuers already set",
-			mrc1: nil,
-			mrc2: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mrc2",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
-			result:                    false,
-			currentSigningIssuerID:    "mrc2",
-			currentValidatingIssuerID: "mrc2",
+			currentSigningIssuerID:    "",
+			currentValidatingIssuerID: "",
 		},
 		{
 			name: "mrc1 is active and mrc2 is passive and issuers not set",
@@ -189,6 +271,28 @@ func TestShouldSetIssuers(t *testing.T) {
 			result:                    true,
 			currentSigningIssuerID:    "mrc1",
 			currentValidatingIssuerID: "mrc1",
+		},
+		{
+			name: "mrc1 is active and mrc2 is passive and only one issuer set",
+			mrc1: &v1alpha2.MeshRootCertificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mrc1",
+				},
+				Spec: v1alpha2.MeshRootCertificateSpec{
+					Intent: v1alpha2.ActiveIntent,
+				},
+			},
+			mrc2: &v1alpha2.MeshRootCertificate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mrc2",
+				},
+				Spec: v1alpha2.MeshRootCertificateSpec{
+					Intent: v1alpha2.PassiveIntent,
+				},
+			},
+			result:                    true,
+			currentSigningIssuerID:    "mrc1",
+			currentValidatingIssuerID: "",
 		},
 		{
 			name: "mrc1 is active and mrc2 is passive and issuers already set",
@@ -305,10 +409,14 @@ func TestShouldSetIssuers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := tassert.New(t)
 
-			m := &Manager{
-				signingIssuer:    &issuer{ID: tt.currentSigningIssuerID},
-				validatingIssuer: &issuer{ID: tt.currentValidatingIssuerID},
+			m := &Manager{}
+			if tt.currentSigningIssuerID != "" {
+				m.signingIssuer = &issuer{ID: tt.currentSigningIssuerID}
 			}
+			if tt.currentValidatingIssuerID != "" {
+				m.validatingIssuer = &issuer{ID: tt.currentValidatingIssuerID}
+			}
+
 			err := m.shouldSetIssuers(tt.mrc1, tt.mrc2)
 			assert.Equal(tt.result, err)
 		})
@@ -331,34 +439,12 @@ func TestSetIssuers(t *testing.T) {
 			result: ErrUnexpectedNilMRC,
 		},
 		{
-			name: "mrc1 is active",
-			mrc1: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mrc1",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
-			mrc2:                       nil,
+			name:                       "mrc1 is active",
+			mrc1:                       activeMRC1,
+			mrc2:                       activeMRC1,
 			result:                     nil,
 			expectedSigningIssuerID:    "mrc1",
 			expectedValidatingIssuerID: "mrc1",
-		},
-		{
-			name: "mrc2 is active",
-			mrc1: nil,
-			mrc2: &v1alpha2.MeshRootCertificate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mrc2",
-				},
-				Spec: v1alpha2.MeshRootCertificateSpec{
-					Intent: v1alpha2.ActiveIntent,
-				},
-			},
-			result:                     nil,
-			expectedSigningIssuerID:    "mrc2",
-			expectedValidatingIssuerID: "mrc2",
 		},
 		{
 			name: "mrc1 is active and mrc2 is passive",
