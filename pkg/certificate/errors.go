@@ -26,8 +26,8 @@ var ErrExpectedActiveMRC = errors.New("found single MRC with non active intent")
 // ErrUnknownMRCIntent is the error that should be returned if the intent value is not passive, active, or inactive.
 var ErrUnknownMRCIntent = errors.New("found single MRC with non active intent")
 
-// ErrMRCNotFound is the the error that should be returned if the expected MRC is not found or is nil.
-var ErrMRCNotFound = errors.New("MRC not found")
+// ErrUnexpectedNilMRC is the the error that should be returned if the MRC is nil.
+var ErrUnexpectedNilMRC = errors.New("received nil MRC")
 
 // All of the below errors should be returned by the StorageEngine for each described scenario. The errors may be
 // wrapped
