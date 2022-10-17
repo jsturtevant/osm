@@ -32,6 +32,8 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 	if len(filteredMRCList) == 2 {
 		mrc2 = mrcList[1]
 	} else {
+		log.Trace().Msgf("found single MRC in the mesh when handling MRC event for MRC %s", mrc1.Name)
+		// if there is only one MRC, set mrc2 equal to mrc1
 		mrc2 = mrc1
 	}
 

@@ -1463,7 +1463,7 @@ const (
 	validatingIssuerIDKey = "validating_issuer_id"
 )
 
-// WaitForCABundleSecretUpdate waits for the CA bundle secret to be created
+// WaitForBootstrapSecretUpdate waits for the CA bundle secret to be updated
 func (td *OsmTestData) WaitForBootstrapSecretUpdate(ns, name, expectedSigningIssuerID, expectedValidatingIssuerID string, timeout time.Duration) error {
 	td.T.Logf("Wait up to %s for %s secret to be ready in NS [%s]...", timeout, ns)
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(5 * time.Second) {
