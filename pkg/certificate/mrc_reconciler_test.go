@@ -447,3 +447,109 @@ func TestSetIssuers(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterOutInactiveMRCs(t *testing.T) {
+	tests := []struct {
+		name            string
+		mrcList         []*v1alpha2.MeshRootCertificate
+		expectedMRCList []*v1alpha2.MeshRootCertificate
+	}{
+		{
+			name:            "empty mrc list",
+			mrcList:         []*v1alpha2.MeshRootCertificate{},
+			expectedMRCList: []*v1alpha2.MeshRootCertificate{},
+		},
+		{
+			name: "mrc list with only inactive mrcs",
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc2",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.InactiveIntent,
+					},
+				},
+			},
+			expectedMRCList: []*v1alpha2.MeshRootCertificate{},
+		},
+		{
+			name: "mrc list with no inactive mrcs",
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc1",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.ActiveIntent,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc2",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.PassiveIntent,
+					},
+				},
+			},
+			expectedMRCList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc1",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.ActiveIntent,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc2",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.PassiveIntent,
+					},
+				},
+			},
+		},
+		{
+			name: "mrc list with no inactive mrcs",
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc1",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.ActiveIntent,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc2",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.InactiveIntent,
+					},
+				},
+			},
+			expectedMRCList: []*v1alpha2.MeshRootCertificate{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "mrc1",
+					},
+					Spec: v1alpha2.MeshRootCertificateSpec{
+						Intent: v1alpha2.ActiveIntent,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := tassert.New(t)
+
+			returnedMRCList := filterOutInactiveMRCs(tt.mrcList)
+			assert.ElementsMatch(tt.expectedMRCList, returnedMRCList)
+		})
+	}
+}
