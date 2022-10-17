@@ -1,8 +1,6 @@
 package certificate
 
 import (
-	"fmt"
-
 	"github.com/openservicemesh/osm/pkg/apis/config/v1alpha2"
 	"github.com/openservicemesh/osm/pkg/errcode"
 )
@@ -14,39 +12,29 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 		return err
 	}
 
-	if len(mrcList) == 0 {
-		msg := fmt.Sprintf("when handling MRC event for MRC %s, found no MRCs in OSM control plane namespace", event.MRCName)
-		log.Error().Msg(msg)
-		return fmt.Errorf(msg)
-	}
-
 	filteredMRCList := filterOutInactiveMRCs(mrcList)
-	if len(filteredMRCList) > 2 {
-		log.Error().Err(ErrNumMRCExceedsMaxSupported).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrNumMRCExceedsMaxSupported)).
-			Msgf("expected 2 or less MRCs in the OSM control plane namespace, found %d", len(mrcList))
-		return ErrNumMRCExceedsMaxSupported
-	}
 
-	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
-	mrc1 = mrcList[0]
-	if len(filteredMRCList) == 2 {
-		mrc2 = mrcList[1]
-	} else {
-		log.Trace().Msgf("found single MRC in the mesh when handling MRC event for MRC %s", mrc1.Name)
-		// if there is only one MRC, set mrc2 equal to mrc1
-		mrc2 = mrc1
-	}
-
-	log.Debug().Msg("validating MRC intent combination")
-	if err = ValidateMRCIntents(mrc1, mrc2); err != nil {
+	desiredSigningMRC, desiredValidatingMRC, err := getSigningAndValidatingMRCs(filteredMRCList)
+	if err != nil {
 		return err
 	}
 
-	if m.shouldSetIssuers(mrc1, mrc2) {
-		return m.setIssuers(mrc1, mrc2)
+	m.mu.Lock()
+	signingIssuer := m.signingIssuer
+	validatingIssuer := m.validatingIssuer
+	m.mu.Unlock()
+
+	// if the issuers are already set to the desired value, return
+	if signingIssuer != nil && signingIssuer.ID == desiredSigningMRC.Name && validatingIssuer != nil && validatingIssuer.ID == desiredValidatingMRC.Name {
+		return nil
 	}
 
-	return nil
+	desiredSigningIssuer, desiredValidatingIssuer, err := m.getCertIssuers(desiredSigningMRC, desiredValidatingMRC)
+	if err != nil {
+		return err
+	}
+
+	return m.updateIssuers(desiredSigningIssuer, desiredValidatingIssuer)
 }
 
 var validMRCIntentCombinations = map[v1alpha2.MeshRootCertificateIntent][]v1alpha2.MeshRootCertificateIntent{
@@ -95,22 +83,36 @@ func ValidateMRCIntents(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
 	return ErrInvalidMRCIntentCombination
 }
 
-func (m *Manager) shouldSetIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) bool {
+// getSigningAndValidatingMRCs returns the signing and validating MRCs from a list of MRCs
+func getSigningAndValidatingMRCs(mrcList []*v1alpha2.MeshRootCertificate) (*v1alpha2.MeshRootCertificate, *v1alpha2.MeshRootCertificate, error) {
+	if len(mrcList) == 0 {
+		log.Error().Err(ErrNoMRCsFound).Msg("when handling MRC event, found no MRCs in OSM control plane namespace")
+		return nil, nil, ErrNoMRCsFound
+	}
+	if len(mrcList) > 2 {
+		log.Error().Err(ErrNumMRCExceedsMaxSupported).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrNumMRCExceedsMaxSupported)).
+			Msgf("expected 2 or less MRCs in the OSM control plane namespace, found %d", len(mrcList))
+		return nil, nil, ErrNumMRCExceedsMaxSupported
+	}
+
+	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
+	mrc1 = mrcList[0]
+	if len(mrcList) == 2 {
+		mrc2 = mrcList[1]
+	} else {
+		log.Trace().Msgf("found single MRC in the mesh when handling MRC event for MRC %s", mrc1.Name)
+		// if there is only one MRC, set mrc2 equal to mrc1
+		mrc2 = mrc1
+	}
+
+	log.Debug().Msg("validating MRC intent combination")
+	if err := ValidateMRCIntents(mrc1, mrc2); err != nil {
+		return nil, nil, err
+	}
+
 	if mrc1 == nil || mrc2 == nil {
 		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when validating MRC intents")
-		return false
-	}
-
-	var signingIssuer, validatingIssuer *issuer
-	m.mu.Lock()
-	signingIssuer = m.signingIssuer
-	validatingIssuer = m.validatingIssuer
-	m.mu.Unlock()
-
-	// if the validatingIssuer or signingIssuer have not been set, attempt to update issuers
-	// intent combination should already have been validated in ValidateMRCIntents
-	if validatingIssuer == nil || signingIssuer == nil {
-		return true
+		return nil, nil, ErrUnexpectedNilMRC
 	}
 
 	intent1 := mrc1.Spec.Intent
@@ -120,112 +122,80 @@ func (m *Manager) shouldSetIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) boo
 	case v1alpha2.ActiveIntent:
 		switch intent2 {
 		case v1alpha2.PassiveIntent:
-			if mrc1.Name == signingIssuer.ID && mrc2.Name == validatingIssuer.ID {
-				log.Debug().Msgf("issuers already set to expected values: validating[%s] and signing[%s]. Should not update", validatingIssuer.ID, signingIssuer.ID)
-				return false
-			}
-			return true
+			return mrc1, mrc2, nil
 		case v1alpha2.ActiveIntent:
 			// If mrc1 != mrc2 and both MRCs have active intents, their state is non
-			// deterministic. To avoid continuously resetting the issuers when both
-			// MRCs are active, accept either of the following cases.
-			if (mrc1.Name == signingIssuer.ID && mrc2.Name == validatingIssuer.ID) ||
-				(mrc1.Name == validatingIssuer.ID && mrc2.Name == signingIssuer.ID) {
-				log.Debug().Msgf("issuers already set to expected values: validating[%s] and signing[%s]. Should not update", validatingIssuer.ID, signingIssuer.ID)
-				return false
-			}
-			return true
+			// deterministic. To avoid continuously resetting the issuers, only update
+			// if the issuers have not already been set.
+			return mrc1, mrc2, nil
 		default:
 			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return false
+			return nil, nil, ErrInvalidMRCIntentCombination
 		}
 	case v1alpha2.PassiveIntent:
 		switch intent2 {
 		case v1alpha2.ActiveIntent:
-			if mrc1.Name == validatingIssuer.ID && mrc2.Name == signingIssuer.ID {
-				log.Debug().Msgf("issuers already set to expected values: validating[%s] and signing[%s]. Should not update", validatingIssuer.ID, signingIssuer.ID)
-				return false
-			}
-			return true
+			return mrc2, mrc1, nil
 		default:
 			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
 				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return false
+			return nil, nil, ErrInvalidMRCIntentCombination
 		}
 	default:
 		log.Error().Err(ErrUnknownMRCIntent).Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-		return false
+		return nil, nil, ErrUnknownMRCIntent
 	}
 }
 
-func (m *Manager) setIssuers(mrc1, mrc2 *v1alpha2.MeshRootCertificate) error {
-	if mrc1 == nil && mrc2 == nil {
-		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when validating MRC intents")
-		return ErrUnexpectedNilMRC
-	}
-
-	var issuer1, issuer2 *issuer
-	issuer1, err := m.getCertIssuer(mrc1)
-	if err != nil {
-		return err
-	}
-	// don't get the issuer again if there is a single MRC in the control plane
-	if mrc1 == mrc2 {
-		issuer2 = issuer1
-	} else {
-		issuer2, err = m.getCertIssuer(mrc2)
-		if err != nil {
-			return err
-		}
-	}
-
-	intent1 := mrc1.Spec.Intent
-	intent2 := mrc2.Spec.Intent
-
-	var signingIssuer, validatingIssuer *issuer
-	switch intent1 {
-	case v1alpha2.ActiveIntent:
-		switch intent2 {
-		case v1alpha2.PassiveIntent:
-			signingIssuer = issuer1
-			validatingIssuer = issuer2
-		case v1alpha2.ActiveIntent:
-			signingIssuer = issuer1
-			validatingIssuer = issuer2
-		default:
-			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return ErrInvalidMRCIntentCombination
-		}
-	case v1alpha2.PassiveIntent:
-		switch intent2 {
-		case v1alpha2.ActiveIntent:
-			signingIssuer = issuer2
-			validatingIssuer = issuer1
-		default:
-			log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-				Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-			return ErrInvalidMRCIntentCombination
-		}
-	default:
-		log.Error().Err(ErrUnknownMRCIntent).Msgf("invalid combination of %s intent and %s intent", intent1, intent2)
-		return ErrUnknownMRCIntent
-	}
-
-	return m.updateIssuers(signingIssuer, validatingIssuer)
-}
-
-func (m *Manager) updateIssuers(signing, validating *issuer) error {
+func (m *Manager) updateIssuers(signingIssuer, validatingIssuer *issuer) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.signingIssuer = signing
-	m.validatingIssuer = validating
-	log.Trace().Msgf("setting issuers for validating[%s] and signing[%s]", validating.ID, signing.ID)
+	m.signingIssuer = signingIssuer
+	m.validatingIssuer = validatingIssuer
+	log.Trace().Msgf("setting issuers for validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
 	return nil
 }
 
+func (m *Manager) getCertIssuers(signingMRC, validatingMRC *v1alpha2.MeshRootCertificate) (*issuer, *issuer, error) {
+	if signingMRC == nil || validatingMRC == nil {
+		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when getting cert issuers from MRCs")
+		return nil, nil, ErrUnexpectedNilMRC
+	}
+
+	var desiredSigningIssuer, desiredValidatingIssuer *issuer
+	desiredSigningIssuer, err := m.getCertIssuer(signingMRC)
+	if err != nil {
+		return nil, nil, err
+	}
+	// don't get the issuer again if there is a single MRC in the control plane
+	if signingMRC == validatingMRC {
+		desiredValidatingIssuer = desiredSigningIssuer
+	} else {
+		desiredValidatingIssuer, err = m.getCertIssuer(validatingMRC)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return desiredSigningIssuer, desiredValidatingIssuer, nil
+}
+
 func (m *Manager) getCertIssuer(mrc *v1alpha2.MeshRootCertificate) (*issuer, error) {
+	m.mu.Lock()
+	signingIssuer := m.signingIssuer
+	validatingIssuer := m.validatingIssuer
+	m.mu.Unlock()
+
+	// if the issuer has already been created for the specified mrc,
+	// return the existing issuer
+	if signingIssuer != nil && mrc.Name == signingIssuer.ID {
+		return signingIssuer, nil
+	}
+	if validatingIssuer != nil && mrc.Name == validatingIssuer.ID {
+		return validatingIssuer, nil
+	}
+
 	client, ca, err := m.mrcClient.GetCertIssuerForMRC(mrc)
 	if err != nil {
 		return nil, err

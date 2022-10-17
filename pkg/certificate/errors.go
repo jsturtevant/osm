@@ -29,6 +29,9 @@ var ErrUnknownMRCIntent = errors.New("found single MRC with non active intent")
 // ErrUnexpectedNilMRC is the the error that should be returned if the MRC is nil.
 var ErrUnexpectedNilMRC = errors.New("received nil MRC")
 
+// ErrNoMRCsFound is the the error that should be returned if no MRCs were found in the control plane.
+var ErrNoMRCsFound = errors.New("found no MRCs")
+
 // All of the below errors should be returned by the StorageEngine for each described scenario. The errors may be
 // wrapped
 
