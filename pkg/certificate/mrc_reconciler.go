@@ -22,7 +22,7 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 
 	shouldUpdate, err := m.shouldUpdateIssuers(desiredSigningMRC, desiredValidatingMRC)
 	if err != nil {
-		return nil
+		return err
 	}
 	if !shouldUpdate {
 		return nil
@@ -34,23 +34,6 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 	}
 
 	return m.updateIssuers(desiredSigningIssuer, desiredValidatingIssuer)
-}
-
-var validMRCIntents = map[v1alpha2.MeshRootCertificateIntent]struct{}{
-	v1alpha2.ActiveIntent:  {},
-	v1alpha2.PassiveIntent: {},
-}
-
-// validateMRCIntents validates the inte MRCs
-func validateMRCIntent(intent v1alpha2.MeshRootCertificateIntent) error {
-	_, ok := validMRCIntents[intent]
-	if !ok {
-		log.Error().Err(ErrUnexpectedMRCIntent).Msgf("unable to find %s intent in set of valid intents", intent)
-		return ErrUnexpectedMRCIntent
-	}
-
-	log.Debug().Msgf("validated MRC intent %s", intent)
-	return nil
 }
 
 // getSigningAndValidatingMRCs returns the signing and validating MRCs from a list of MRCs
@@ -82,13 +65,6 @@ func getSigningAndValidatingMRCs(mrcList []*v1alpha2.MeshRootCertificate) (*v1al
 
 	intent1 := mrc1.Spec.Intent
 	intent2 := mrc2.Spec.Intent
-
-	if err := validateMRCIntent(intent1); err != nil {
-		return nil, nil, err
-	}
-	if err := validateMRCIntent(intent2); err != nil {
-		return nil, nil, err
-	}
 
 	log.Debug().Msgf("validating intent combination of %s and %s", intent1, intent2)
 	if mrc1 == mrc2 {
@@ -122,38 +98,30 @@ func getSigningAndValidatingMRCs(mrcList []*v1alpha2.MeshRootCertificate) (*v1al
 }
 
 func (m *Manager) shouldUpdateIssuers(desiredSigningMRC, desiredValidatingMRC *v1alpha2.MeshRootCertificate) (bool, error) {
-	if desiredSigningMRC == nil || desiredValidatingMRC == nil {
-		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when getting cert issuers from MRCs")
-		return false, ErrUnexpectedNilMRC
-	}
-
 	m.mu.Lock()
 	signingIssuer := m.signingIssuer
 	validatingIssuer := m.validatingIssuer
 	m.mu.Unlock()
 
-	// if the issuers are already set to the desired value, return
-	if signingIssuer != nil && signingIssuer.ID == desiredSigningMRC.Name && validatingIssuer != nil && validatingIssuer.ID == desiredValidatingMRC.Name {
+	if signingIssuer == nil || validatingIssuer == nil {
+		return true, nil
+	}
+
+	// no update required if the issuers are already set to the desired value
+	if signingIssuer.ID == desiredSigningMRC.Name && validatingIssuer.ID == desiredValidatingMRC.Name {
 		log.Debug().Msgf("issuers already set to the desired value. Will not update issuers: validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
 		return false, nil
 	}
 
 	// if desiredSigningMRC != desiredValidatingMRC and both MRCs have active intents, their state is non
-	// deterministic. To avoid continuously resetting the issuers, only update
-	// if the issuers have not already been set
+	// deterministic. No update required if the current signing and validating issuers correspond to the
+	// existing MRCs. This check is necessary to avoid continuously resetting the issuers on start up
 	if desiredSigningMRC != desiredValidatingMRC && desiredSigningMRC.Spec.Intent == v1alpha2.ActiveIntent &&
-		desiredValidatingMRC.Spec.Intent == v1alpha2.ActiveIntent && signingIssuer != nil && validatingIssuer != nil {
-		log.Debug().Msgf("issuers already set and MRC intents are non deterministic; validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
-
-		// if the issuers match either desired MRC, don't update. Note: the issuers are not set to their
-		// desired values, but are in an acceptable state.
-		if (desiredSigningMRC.Name == signingIssuer.ID || desiredSigningMRC.Name == validatingIssuer.ID) &&
-			(desiredValidatingMRC.Name == signingIssuer.ID || desiredValidatingMRC.Name == validatingIssuer.ID) {
-			log.Debug().Msgf("Will not update issuers to avoid repeated updates; validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
-			return false, nil
-		}
-		// update since the issuers do not match the desired MRCs
-		return true, nil
+		desiredValidatingMRC.Spec.Intent == v1alpha2.ActiveIntent &&
+		(desiredSigningMRC.Name == signingIssuer.ID || desiredSigningMRC.Name == validatingIssuer.ID) &&
+		(desiredValidatingMRC.Name == signingIssuer.ID || desiredValidatingMRC.Name == validatingIssuer.ID) {
+		log.Debug().Msgf("Will not update issuers to avoid repeated updates; validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
+		return false, nil
 	}
 
 	return true, nil
@@ -169,11 +137,6 @@ func (m *Manager) updateIssuers(signingIssuer, validatingIssuer *issuer) error {
 }
 
 func (m *Manager) getCertIssuers(desiredSigningMRC, desiredValidatingMRC *v1alpha2.MeshRootCertificate) (*issuer, *issuer, error) {
-	if desiredSigningMRC == nil || desiredValidatingMRC == nil {
-		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when getting cert issuers from MRCs")
-		return nil, nil, ErrUnexpectedNilMRC
-	}
-
 	var desiredSigningIssuer, desiredValidatingIssuer *issuer
 	desiredSigningIssuer, err := m.getCertIssuer(desiredSigningMRC)
 	if err != nil {
