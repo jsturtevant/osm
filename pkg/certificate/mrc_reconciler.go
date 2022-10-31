@@ -36,7 +36,7 @@ func (m *Manager) handleMRCEvent(event MRCEvent) error {
 	return m.updateIssuers(desiredSigningIssuer, desiredValidatingIssuer)
 }
 
-// getSigningAndValidatingMRCs returns the signing and validating MRCs from a list of MRCs
+// getSigningAndValidatingMRCs returns orders the list of MRC's according to the intents.
 func getSigningAndValidatingMRCs(mrcList []*v1alpha2.MeshRootCertificate) (*v1alpha2.MeshRootCertificate, *v1alpha2.MeshRootCertificate, error) {
 	if len(mrcList) == 0 {
 		log.Error().Err(ErrNoMRCsFound).Msg("when handling MRC event, found no MRCs in OSM control plane namespace")
@@ -48,53 +48,32 @@ func getSigningAndValidatingMRCs(mrcList []*v1alpha2.MeshRootCertificate) (*v1al
 		return nil, nil, ErrNumMRCExceedsMaxSupported
 	}
 
-	var mrc1, mrc2 *v1alpha2.MeshRootCertificate
-	mrc1 = mrcList[0]
-	if len(mrcList) == 2 {
-		mrc2 = mrcList[1]
-	} else {
-		log.Trace().Msgf("found single MRC in the mesh when handling MRC event for MRC %s", mrc1.Name)
-		// if there is only one MRC, set mrc2 equal to mrc1
-		mrc2 = mrc1
-	}
-
-	if mrc1 == nil || mrc2 == nil {
-		log.Error().Err(ErrUnexpectedNilMRC).Msg("unexpected nil MRC provided when validating MRC intents")
-		return nil, nil, ErrUnexpectedNilMRC
-	}
-
-	intent1 := mrc1.Spec.Intent
-	intent2 := mrc2.Spec.Intent
-
-	log.Debug().Msgf("validating intent combination of %s and %s", intent1, intent2)
-	if mrc1 == mrc2 {
-		// if the MRCs are equal then there is only 1 MRC in the mesh
-		// and it must have an active intent
-		if intent1 == v1alpha2.ActiveIntent {
-			// since there is only 1 MRC, it is the signing and validating MRC
-			return mrc1, mrc2, nil
-		}
-
-		log.Error().Err(ErrExpectedActiveMRC).Msgf("expected single MRC with %s intent, found %s", v1alpha2.ActiveIntent, mrc1.Spec.Intent)
+	if len(mrcList) == 1 && mrcList[0].Spec.Intent != v1alpha2.ActiveIntent {
 		return nil, nil, ErrExpectedActiveMRC
 	}
 
-	// the combination of active and passive intents is deterministic
-	// regardless of MRC ordering, the passive MRC is the validating MRC and
-	// the active MRC is the signing MRC
-	// the combination of active and active intents is non-deterministic
-	// depending on the MRC ordering, either MRC could be the validating or
-	// signing MRC
-	if intent1 == v1alpha2.ActiveIntent && (intent2 == v1alpha2.PassiveIntent || intent2 == v1alpha2.ActiveIntent) {
-		return mrc1, mrc2, nil
-	}
-	if intent1 == v1alpha2.PassiveIntent && intent2 == v1alpha2.ActiveIntent {
-		return mrc2, mrc1, nil
+	// check that we don't have two passive MRCs (not allowed must have active)
+	if len(mrcList) == 2 && mrcList[0].Spec.Intent == v1alpha2.PassiveIntent && mrcList[1].Spec.Intent == v1alpha2.PassiveIntent {
+		return nil, nil, ErrExpectedActiveMRC
 	}
 
-	log.Error().Err(ErrInvalidMRCIntentCombination).Str(errcode.Kind, errcode.GetErrCodeWithMetric(errcode.ErrInvalidMRCIntentCombination)).
-		Msgf("invalid intent combination of %s and %s", intent1, intent2)
-	return nil, nil, ErrInvalidMRCIntentCombination
+	// single active MRC!
+	if len(mrcList) == 1 {
+		return mrcList[0], mrcList[0], nil
+	}
+
+	// the combination of active and passive intents is deterministic
+	// regardless of MRC ordering, the passive MRC is the validating MRC and the active MRC is the signing MRC
+	// this means that if the first one in the list is Passive and the second is active we can return this combination
+	// and any other is valid
+	if mrcList[0].Spec.Intent == v1alpha2.PassiveIntent && mrcList[1].Spec.Intent == v1alpha2.ActiveIntent {
+		return mrcList[1], mrcList[0], nil
+	}
+
+	// note: the combination of active and active intents is non-deterministic
+	// depending on the MRC ordering, either MRC could be the validating or
+	// not swapping them is handled later when we leave it as is on new updates.
+	return mrcList[0], mrcList[1], nil
 }
 
 func (m *Manager) shouldUpdateIssuers(desiredSigningMRC, desiredValidatingMRC *v1alpha2.MeshRootCertificate) (bool, error) {
@@ -113,13 +92,14 @@ func (m *Manager) shouldUpdateIssuers(desiredSigningMRC, desiredValidatingMRC *v
 		return false, nil
 	}
 
+	bothActive := desiredSigningMRC.Spec.Intent == v1alpha2.ActiveIntent && desiredValidatingMRC.Spec.Intent == v1alpha2.ActiveIntent
+	exist := (desiredSigningMRC.Name == signingIssuer.ID || desiredSigningMRC.Name == validatingIssuer.ID) &&
+		(desiredValidatingMRC.Name == signingIssuer.ID || desiredValidatingMRC.Name == validatingIssuer.ID)
+
 	// if desiredSigningMRC != desiredValidatingMRC and both MRCs have active intents, their state is non
 	// deterministic. No update required if the current signing and validating issuers correspond to the
 	// existing MRCs. This check is necessary to avoid continuously resetting the issuers on start up
-	if desiredSigningMRC != desiredValidatingMRC && desiredSigningMRC.Spec.Intent == v1alpha2.ActiveIntent &&
-		desiredValidatingMRC.Spec.Intent == v1alpha2.ActiveIntent &&
-		(desiredSigningMRC.Name == signingIssuer.ID || desiredSigningMRC.Name == validatingIssuer.ID) &&
-		(desiredValidatingMRC.Name == signingIssuer.ID || desiredValidatingMRC.Name == validatingIssuer.ID) {
+	if desiredSigningMRC != desiredValidatingMRC && bothActive && exist {
 		log.Debug().Msgf("Will not update issuers to avoid repeated updates; validating[%s] and signing[%s]", validatingIssuer.ID, signingIssuer.ID)
 		return false, nil
 	}
@@ -142,14 +122,10 @@ func (m *Manager) getCertIssuers(desiredSigningMRC, desiredValidatingMRC *v1alph
 	if err != nil {
 		return nil, nil, err
 	}
-	// don't get the issuer again if there is a single MRC in the control plane
-	if desiredSigningMRC == desiredValidatingMRC {
-		desiredValidatingIssuer = desiredSigningIssuer
-	} else {
-		desiredValidatingIssuer, err = m.getCertIssuer(desiredValidatingMRC)
-		if err != nil {
-			return nil, nil, err
-		}
+
+	desiredValidatingIssuer, err = m.getCertIssuer(desiredValidatingMRC)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return desiredSigningIssuer, desiredValidatingIssuer, nil

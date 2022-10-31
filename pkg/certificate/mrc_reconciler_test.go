@@ -222,6 +222,14 @@ func TestGetSigningAndValidatingMRCs(t *testing.T) {
 			expectedSigningMRC:    activeMRC2,
 			expectedValidatingMRC: passiveMRC1,
 		},
+		{
+			name: "mrc1 is passive and mrc2 is passive",
+			mrcList: []*v1alpha2.MeshRootCertificate{
+				passiveMRC1,
+				passiveMRC2,
+			},
+			expectedError: ErrExpectedActiveMRC,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -265,6 +273,15 @@ func TestGetCertIssuers(t *testing.T) {
 			validatingMRC:              activeMRC1,
 			currentSigningIssuerID:     mrc1Name,
 			currentValidatingIssuerID:  mrc2Name,
+			expectedSigningIssuerID:    mrc1Name,
+			expectedValidatingIssuerID: mrc1Name,
+		},
+		{
+			name:                       "same mrcs for signing and validating, issuer does exist as ValidatingIssuer",
+			signingMRC:                 activeMRC1,
+			validatingMRC:              activeMRC1,
+			currentSigningIssuerID:     mrc2Name,
+			currentValidatingIssuerID:  mrc1Name,
 			expectedSigningIssuerID:    mrc1Name,
 			expectedValidatingIssuerID: mrc1Name,
 		},

@@ -21,7 +21,7 @@ var ErrNumMRCExceedsMaxSupported = errors.New("found more than the max number of
 
 // ErrExpectedActiveMRC is the error that should be returned when there is only 1 MRC in the mesh and it does not
 // have an active intent.
-var ErrExpectedActiveMRC = errors.New("found single MRC with non active intent")
+var ErrExpectedActiveMRC = errors.New("no MRC with active intent found")
 
 // ErrUnexpectedMRCIntent is the error that should be returned if the intent value is not passive or active.
 // The MRC reconciler should only consider MRCs with passive or active intents for the validating and signing
